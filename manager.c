@@ -3,6 +3,7 @@
 int main(void)
 {
     int shmid = create_shared_memory();
+    int msqid = create_message_queue();
 
     shared_data_t *d = shmat(shmid, NULL, 0);
     if (d == (void *)-1)
@@ -11,7 +12,7 @@ int main(void)
     for (int i = 0; i < MIN_CASHIERS; i++)
     {
         if (!fork())
-	{
+	    {
             execl("./cashier", "cashier", NULL);
             fatal_error("execl cashier");
         }
@@ -26,6 +27,7 @@ int main(void)
     while (wait(NULL) > 0);
 
     shmdt(d);
+    msgctl(msqid, IPC_RMID, NULL);
     remove_shared_memory(shmid);
     return 0;
 }

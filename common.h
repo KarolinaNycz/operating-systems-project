@@ -10,6 +10,8 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/msg.h>
+
 
 #define IPC_KEY 11
 #define MAX_SECTORS 8
@@ -20,6 +22,12 @@ typedef struct
     int total_capacity;
     int sector_capacity[MAX_SECTORS];
 } shared_data_t;
+
+typedef struct
+{
+    long mtype;
+    pid_t pid;
+} msg_t;
 
 void fatal_error(const char *msg);
 int create_shared_memory(void);
