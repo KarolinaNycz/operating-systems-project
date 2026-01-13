@@ -38,8 +38,25 @@ int create_message_queue(void)
     return msqid;
 }
 
+int create_semaphore(void)
+{
+    key_t key = ftok(".", IPC_KEY + 2);
+    if (key == -1) fatal_error("ftok sem");
+
+    int semid = semget(key, 1, IPC_CREAT | 0666);
+    if (semid == -1) fatal_error("semget");
+
+    if (semctl(semid, 0, SETVAL, 1) == -1) fatal_error("semctl SETVAL");
+
+    return semid;
+}
+
 void remove_shared_memory(int shmid)
 {
     shmctl(shmid, IPC_RMID, NULL);
 }
 
+void remove_semaphore(int semid)
+{
+    semctl(semid, 0, IPC_RMID);
+}

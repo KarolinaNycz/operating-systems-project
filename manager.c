@@ -4,6 +4,7 @@ int main(void)
 {
     int shmid = create_shared_memory();
     int msqid = create_message_queue();
+    int semid = create_semaphore();
 
     shared_data_t *d = shmat(shmid, NULL, 0);
     if (d == (void *)-1)
@@ -28,6 +29,7 @@ int main(void)
 
     shmdt(d);
     msgctl(msqid, IPC_RMID, NULL);
+    remove_semaphore(semid);
     remove_shared_memory(shmid);
     return 0;
 }

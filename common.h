@@ -11,7 +11,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/msg.h>
-
+#include <sys/sem.h>
 
 #define IPC_KEY 11
 #define MAX_SECTORS 8
@@ -30,7 +30,12 @@ typedef struct
 } msg_t;
 
 void fatal_error(const char *msg);
+
 int create_shared_memory(void);
+int create_message_queue(void);
+int create_semaphore(void);
+
 void remove_shared_memory(int shmid);
+void remove_semaphore(int semid);
 
 #endif
