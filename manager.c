@@ -24,6 +24,9 @@ int main(void)
         execl("./tech", "tech", NULL);
         fatal_error("execl tech");
     }
+    
+    sleep(2);
+    kill(0, SIG_STOP_WORK);
 
     while (wait(NULL) > 0);
 

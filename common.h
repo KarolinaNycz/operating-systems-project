@@ -12,6 +12,9 @@
 #include <string.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
+#include <signal.h>
+
+#define SIG_STOP_WORK SIGUSR1
 
 #define IPC_KEY 11
 #define MAX_SECTORS 8
