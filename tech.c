@@ -1,9 +1,23 @@
 #include "common.h"
+#include <pthread.h>
+
+static pthread_mutex_t control_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void stop_handler(int sig)
 {
     (void)sig;
     _exit(0);
+}
+
+static void* control(void *arg)
+{
+    (void)arg;
+
+    pthread_mutex_lock(&control_mutex);
+    sleep(1);
+    pthread_mutex_unlock(&control_mutex);
+
+    pthread_exit(NULL);
 }
 
 int main(void) 
@@ -16,6 +30,14 @@ int main(void)
     shared_data_t *d = shmat(shmid, NULL, 0);
     (void)d;
 
+    pthread_t t1, t2;
+
+    pthread_create(&t1, NULL, control, NULL);
+    pthread_create(&t2, NULL, control, NULL);
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    
     sleep(1);
     return 0;
 }
