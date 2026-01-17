@@ -24,6 +24,9 @@ int main(void)
         execl("./tech", "tech", NULL);
         fatal_error("execl tech");
     }
+
+    msg_t msg;
+    msgrcv(msqid, &msg, sizeof(msg) - sizeof(long), 0, 0);
     
     sleep(2);
     kill(0, SIG_STOP_WORK);
