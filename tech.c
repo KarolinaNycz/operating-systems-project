@@ -2,11 +2,12 @@
 #include <pthread.h>
 
 static pthread_mutex_t control_mutex = PTHREAD_MUTEX_INITIALIZER;
+static shared_data_t *d = NULL;
 
-static void stop_handler(int sig)
+void evacuate(int s)
 {
-    (void)sig;
-    _exit(0);
+    (void)s;
+    d->evacuation = 1;
 }
 
 static void* control(void *arg)
@@ -22,13 +23,13 @@ static void* control(void *arg)
 
 int main(void) 
 {
-    signal(SIG_STOP_WORK, stop_handler);
+    signal(SIG_EVACUATE, evacuate);
     
     int shmid = shmget(ftok(".", IPC_KEY), sizeof(shared_data_t), 0);
     if (shmid < 0) fatal_error("tech shmget");
 
-    shared_data_t *d = shmat(shmid, NULL, 0);
-    (void)d;
+    d = shmat(shmid, NULL, 0);
+    if (d == (void *)-1) fatal_error("tech shmat");
 
     pthread_t t1, t2;
 

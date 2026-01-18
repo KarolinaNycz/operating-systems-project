@@ -26,10 +26,11 @@ int main(void)
     }
 
     msg_t msg;
-    msgrcv(msqid, &msg, sizeof(msg) - sizeof(long), 0, 0);
+    if (msgrcv(msqid, &msg, sizeof(msg) - sizeof(long), 0, 0) == -1) fatal_error("manager msgrcv");
     
     sleep(2);
-    kill(0, SIG_STOP_WORK);
+    kill(0, SIG_EVACUATE);
+
 
     while (wait(NULL) > 0);
 
