@@ -1,12 +1,57 @@
+#define _POSIX_C_SOURCE 200809L
 #include "common.h"
+#include <unistd.h>
+#include <signal.h>
+
+static int g_shmid = -1;
+static int g_msqid = -1;
+static int g_semid = -1;
+
+static shared_data_t *d = NULL;
+
+void cleanup(int sig)
+{
+    (void)sig;
+
+    write(1, "\n[MANAGER] Sprzatanie...\n", 24);
+
+    if (d) shmdt(d);
+    if (g_msqid != -1)
+        msgctl(g_msqid, IPC_RMID, NULL);
+
+    if (g_shmid != -1)
+        shmctl(g_shmid, IPC_RMID, NULL);
+
+    if (g_semid != -1)
+        semctl(g_semid, 0, IPC_RMID);
+    
+    _exit(0);
+}
+
+void evacuation_handler(int s)
+{
+    (void)s;
+
+    if (d) d->evacuation = 1;
+
+    write(STDOUT_FILENO,
+          "[MANAGER] Ewakuacja\n", 20);
+}
 
 int main(void)
 {
-    int shmid = create_shared_memory();
-    int msqid = create_message_queue();
-    int semid = create_semaphore();
+    signal(SIGINT, cleanup);
+    signal(SIGTERM, cleanup);
+    signal(SIGQUIT, cleanup);
 
-    shared_data_t *d = shmat(shmid, NULL, 0);
+    signal(SIG_EVACUATE, evacuation_handler);
+
+    g_shmid = create_shared_memory();
+    g_msqid = create_message_queue();
+    g_semid = create_semaphore();
+
+
+    d = shmat(g_shmid, NULL, 0);
     if (d == (void *)-1)
         fatal_error("shmat manager");
 
@@ -19,6 +64,16 @@ int main(void)
         }
     }
 
+    for (int i = 0; i < MAX_FANS; i++)
+    {
+        if (!fork())
+        {
+            execl("./fan", "fan", NULL);
+            fatal_error("execl fan");
+        }
+    }
+
+
     if (!fork())
     {
         execl("./tech", "tech", NULL);
@@ -26,7 +81,7 @@ int main(void)
     }
 
     msg_t msg;
-    if (msgrcv(msqid, &msg, sizeof(msg) - sizeof(long), 0, 0) == -1) fatal_error("manager msgrcv");
+    if (msgrcv(g_msqid, &msg, sizeof(msg) - sizeof(long), 0, 0) == -1) fatal_error("manager msgrcv");
     
     sleep(2);
     kill(0, SIG_EVACUATE);
@@ -34,9 +89,6 @@ int main(void)
 
     while (wait(NULL) > 0);
 
-    shmdt(d);
-    msgctl(msqid, IPC_RMID, NULL);
-    remove_semaphore(semid);
-    remove_shared_memory(shmid);
+    cleanup(0);
     return 0;
 }

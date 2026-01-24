@@ -19,6 +19,7 @@
 #define IPC_KEY 11
 #define MAX_SECTORS 8
 #define MIN_CASHIERS 2
+#define MAX_FANS 50
 
 #define MSG_BUY_TICKET 1
 #define MSG_TICKET_OK  2
