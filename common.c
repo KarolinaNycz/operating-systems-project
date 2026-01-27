@@ -20,6 +20,14 @@ int create_shared_memory(void)
     memset(d, 0, sizeof(*d));
     d->total_capacity = 800;
 
+    for (int s = 0; s < MAX_SECTORS; s++)
+    {
+        for (int g = 0; g < GATES_PER_SECTOR; g++)
+        {
+            d->gate_team[s][g] = -1;
+        }
+    }
+
     for (int i = 0; i < MAX_SECTORS; i++)
         d->sector_capacity[i] = d->total_capacity / MAX_SECTORS;
 

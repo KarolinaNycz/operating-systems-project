@@ -1,5 +1,4 @@
 #include "common.h"
-#include "common.h"
 
 static shared_data_t *d = NULL;
 
@@ -30,10 +29,19 @@ int main(void)
 
     int msqid = msgget(ftok(".", IPC_KEY + 1), 0);
     if (msqid < 0) fatal_error("fan msgget");
-    
+
+    int semid = semget(ftok(".", IPC_KEY + 2), 1, 0);
+    if (semid < 0) fatal_error("fan semget");
+
     d = shmat(shmid, NULL, 0);
     if (d == (void *)-1) fatal_error("fan shmat");
-    int my_id = ++d->fan_counter;
+    
+    int my_id;
+
+    sem_lock(semid);
+    my_id = ++d->fan_counter;
+    sem_unlock(semid);
+
 
     msg_t req, res;
 
@@ -43,7 +51,7 @@ int main(void)
     {
         if (first_time)
         {
-            printf("[FAN %d] Fan drużyny %c podchodzi do kasy\n",
+            printf("[FAN %d] Kibic drużyny %c podchodzi do kasy\n",
                 my_id,
                 team == 0 ? 'A' : 'B');
             fflush(stdout);
@@ -67,8 +75,7 @@ int main(void)
             req.sector = (MAX_SECTORS / 2) + rand() % (MAX_SECTORS / 2);
 
         printf("[FAN %d] Chce kupic bilet na sektor %d\n",
-            my_id,
-            req.sector);
+            my_id, req.sector);
         fflush(stdout);
 
 
@@ -78,13 +85,33 @@ int main(void)
 
         if (res.tickets)
         {
-            if (!vip)
-            {
-                while (d->entry_blocked[res.sector] && !d->evacuation) sleep(1);
 
-            }
-            break; 
+            printf("[FAN %d] Ma bilet na sektor %d, szuka bramki...\n",
+                my_id, res.sector);
+            fflush(stdout);
+            
+            msg_t gate_req, gate_res;
+
+            gate_req.mtype = MSG_GATE_REQUEST;
+            gate_req.pid = my_id;
+            gate_req.team = team;
+            gate_req.sector = res.sector;
+
+            if (msgsnd(msqid, &gate_req, sizeof(gate_req)-sizeof(long), 0) == -1) continue;
+            
+            long my_type = MSG_GATE_RESPONSE + my_id;
+            msgrcv(msqid, &gate_res, sizeof(gate_res)-sizeof(long), my_type, 0);
+            
+            if (d->evacuation) break;
+
+            printf("[FAN %d] Wchodzi na hale\n", my_id);
+            fflush(stdout);
+
+            sleep(1);
+
+            break;
         }
+
 
         sleep(1);
     }

@@ -11,6 +11,10 @@ int main(void)
     int msqid = msgget(ftok(".", IPC_KEY + 1), 0);
     if (msqid < 0) fatal_error("cashier msgget");
 
+    int semid = semget(ftok(".", IPC_KEY + 2), 1, 0);
+    if (semid < 0) fatal_error("cashier semget");
+
+
     shared_data_t *d = shmat(shmid, NULL, 0);
     if (d == (void *)-1) fatal_error("cashier shmat");
 
@@ -32,7 +36,8 @@ int main(void)
         res.pid = req.pid;
         res.team = req.team;
         res.sector = sector;
-
+        
+        sem_lock(semid);
         if (d->sector_taken[sector] < d->sector_capacity[sector])
         {
             d->sector_taken[sector]++;
@@ -42,6 +47,8 @@ int main(void)
         {
             res.tickets = 0;
         }
+
+        sem_unlock(semid);
         
         if (res.tickets)
         {

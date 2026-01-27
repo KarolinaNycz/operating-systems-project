@@ -1,24 +1,11 @@
 #include "common.h"
-#include <pthread.h>
 
-static pthread_mutex_t control_mutex = PTHREAD_MUTEX_INITIALIZER;
 static shared_data_t *d = NULL;
 
 void evacuate(int s)
 {
     (void)s;
     d->evacuation = 1;
-}
-
-static void* control(void *arg)
-{
-    (void)arg;
-
-    pthread_mutex_lock(&control_mutex);
-    sleep(1);
-    pthread_mutex_unlock(&control_mutex);
-
-    pthread_exit(NULL);
 }
 
 int main(void) 
@@ -28,17 +15,76 @@ int main(void)
     int shmid = shmget(ftok(".", IPC_KEY), sizeof(shared_data_t), 0);
     if (shmid < 0) fatal_error("tech shmget");
 
+    int msqid = msgget(ftok(".", IPC_KEY + 1), 0);
+    if (msqid < 0) fatal_error("tech msgget");
+
+    int semid = semget(ftok(".", IPC_KEY + 2), 1, 0);
+    if (semid < 0) fatal_error("tech semget");
+
     d = shmat(shmid, NULL, 0);
     if (d == (void *)-1) fatal_error("tech shmat");
+    msg_t req, res;
 
-    pthread_t t1, t2;
+    while (!d->evacuation)
+    {
+        if (msgrcv(msqid, &req, sizeof(req)-sizeof(long), MSG_GATE_REQUEST, 0) == -1) continue;
 
-    pthread_create(&t1, NULL, control, NULL);
-    pthread_create(&t2, NULL, control, NULL);
+        int gate = -1;
 
-    pthread_join(t1, NULL);
-    pthread_join(t2, NULL);
-    
-    sleep(1);
+        while (!d->evacuation)
+        {
+            sem_lock(semid);
+
+            for (int i = 0; i < GATES_PER_SECTOR; i++)
+            {
+                int count = d->gate_count[req.sector][i];
+                int gteam = d->gate_team[req.sector][i];
+
+                if (count == 0)
+                {
+                    d->gate_team[req.sector][i] = req.team;
+                    d->gate_count[req.sector][i] = 1;
+                    gate = i;
+                    break;
+                }
+
+                if (gteam == req.team &&
+                    count < MAX_GATE_CAPACITY)
+                {
+                    d->gate_count[req.sector][i]++;
+                    gate = i;
+                    break;
+                }
+            
+            }
+            
+            sem_unlock(semid);
+
+            if (gate != -1) break;
+
+
+        }
+        
+        if (gate == -1) continue;
+
+        printf("[Bramka %d] Sprawdzam fana %d (sektor %d, team %c)\n", 
+            gate, req.pid, req.sector,
+            req.team == 0 ? 'A' : 'B');
+        fflush(stdout);
+
+        printf("[Bramka %d] Fan %d bezpieczny\n",
+                gate, req.pid);
+        fflush(stdout);
+
+        res.mtype = MSG_GATE_RESPONSE + req.pid;
+        res.pid = req.pid;
+        res.tickets = gate;
+
+        msgsnd(msqid, &res, sizeof(res)-sizeof(long), 0);
+
+    }
+
+    shmdt(d);
+
     return 0;
 }
