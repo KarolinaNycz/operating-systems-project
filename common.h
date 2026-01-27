@@ -27,6 +27,7 @@
 
 typedef struct 
 {
+    int fan_counter;
     int total_capacity;
     int sector_capacity[MAX_SECTORS];
 
@@ -40,6 +41,7 @@ typedef struct
     long mtype;
     pid_t pid;
     int vip;
+    int team;
     int sector;
     int tickets;
 } msg_t;

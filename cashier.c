@@ -20,10 +20,17 @@ int main(void)
     {
         if (msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET, 0) == -1) continue;
         
-        int sector = rand() % MAX_SECTORS;
+        printf("[CASHIER] Fan %d (Team %c) chce sektor %d\n",
+            req.pid,
+            req.team == 0 ? 'A' : 'B',
+            req.sector);
+        fflush(stdout);
+
+        int sector = req.sector;
 
         res.mtype = MSG_TICKET_OK;
         res.pid = req.pid;
+        res.team = req.team;
         res.sector = sector;
 
         if (d->sector_taken[sector] < d->sector_capacity[sector])
@@ -35,6 +42,16 @@ int main(void)
         {
             res.tickets = 0;
         }
+        
+        if (res.tickets)
+        {
+            printf("[CASHIER] Sprzedano bilet fanowi %d na sektor %d\n", req.pid, sector);
+        }
+        else
+        {
+            printf("[CASHIER] Brak miejsc w sektorze %d dla fana %d\n", sector, req.pid);
+        }
+        fflush(stdout);
 
         msgsnd(msqid, &res, sizeof(res) - sizeof(long), 0);
     }
