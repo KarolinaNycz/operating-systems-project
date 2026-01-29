@@ -19,6 +19,9 @@ int create_shared_memory(void)
 
     memset(d, 0, sizeof(*d));
     d->total_capacity = 800;
+    
+    for (int i = 0; i < MAX_SECTORS; i++)
+    d->gate_queue[i] = 0;
 
     for (int s = 0; s < MAX_SECTORS; s++)
     {

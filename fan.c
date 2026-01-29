@@ -98,14 +98,36 @@ int main(void)
             gate_req.sector = res.sector;
 
             if (msgsnd(msqid, &gate_req, sizeof(gate_req)-sizeof(long), 0) == -1) continue;
-            
+
             long my_type = MSG_GATE_RESPONSE + my_id;
             msgrcv(msqid, &gate_res, sizeof(gate_res)-sizeof(long), my_type, 0);
+
+            if (d->priority[my_id])
+            {
+                printf("[FAN %d] Zdenerwowany – dostalem priorytet\n", my_id);
+                fflush(stdout);
+            }
             
             if (d->evacuation) break;
 
             printf("[FAN %d] Wchodzi na hale\n", my_id);
             fflush(stdout);
+
+            sem_lock(semid);
+
+            for (int i = 0; i < GATES_PER_SECTOR; i++)
+            {
+                if (d->gate_team[res.sector][i] == team && d->gate_count[res.sector][i] > 0)
+                {
+                    d->gate_count[res.sector][i]--;
+
+                    if (d->gate_count[res.sector][i] == 0) d->gate_team[res.sector][i] = -1;
+
+                    break;
+                }
+            }
+
+            sem_unlock(semid);
 
             sleep(1);
 

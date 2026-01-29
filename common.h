@@ -19,9 +19,9 @@
 #define IPC_KEY 11
 #define MAX_SECTORS 8
 #define MIN_CASHIERS 2
-#define MAX_FANS 50
-#define GATES_PER_SECTOR 2
-#define MAX_GATE_CAPACITY 3
+#define MAX_FANS 500
+#define GATES_PER_SECTOR 1
+#define MAX_GATE_CAPACITY 1
 
 #define MSG_BUY_TICKET 1
 #define MSG_TICKET_OK  2
@@ -30,6 +30,7 @@
 #define MSG_GATE_REQUEST  10
 #define MSG_GATE_RESPONSE 11
 #define MSG_GATE_LEAVE    12
+#define MSG_GATE_REJECT 13
 
 typedef struct 
 {
@@ -41,6 +42,9 @@ typedef struct
     int sector_taken[MAX_SECTORS];
     int entry_blocked[MAX_SECTORS];
     int evacuation;
+    int gate_wait[MAX_FANS];
+    int priority[MAX_FANS];
+    int gate_queue[MAX_SECTORS];
 } shared_data_t;
 
 typedef struct
