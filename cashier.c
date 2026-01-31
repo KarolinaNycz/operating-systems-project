@@ -1,8 +1,16 @@
 #include "common.h"
+volatile sig_atomic_t evac_flag = 0;
 
+void evacuate(int sig)
+{
+    (void)sig;
+    evac_flag = 1;
+}
 
 int main(void)
 {
+    signal(SIG_EVACUATE, evacuate);
+
     srand(getpid());
 
     int shmid = shmget(ftok(".", IPC_KEY), sizeof(shared_data_t), 0);
@@ -20,9 +28,17 @@ int main(void)
 
     msg_t req, res;
 
-    while (!d->evacuation)
+    while (!d->evacuation && !evac_flag)
     {
-        if (msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET, 0) == -1) continue;
+        ssize_t r = msgrcv( msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET, 0);
+        if (r == -1)
+        {
+            if (errno == EINTR && evac_flag) break;
+
+            continue;
+        }
+
+        if (d->evacuation) break;
         
         printf("[CASHIER] Fan %d (Team %c) chce sektor %d\n",
             req.pid,
@@ -60,7 +76,11 @@ int main(void)
         }
         fflush(stdout);
 
-        msgsnd(msqid, &res, sizeof(res) - sizeof(long), 0);
+        if (msgsnd(msqid, &res, sizeof(res) - sizeof(long), 0) == -1)
+        {
+            if (errno == EINTR || errno == EIDRM) break;
+        }
+
     }
 
     shmdt(d);

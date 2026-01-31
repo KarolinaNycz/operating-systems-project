@@ -20,8 +20,8 @@
 #define MAX_SECTORS 8
 #define MIN_CASHIERS 2
 #define MAX_FANS 500
-#define GATES_PER_SECTOR 1
-#define MAX_GATE_CAPACITY 1
+#define GATES_PER_SECTOR 2
+#define MAX_GATE_CAPACITY 3
 
 #define MSG_BUY_TICKET 1
 #define MSG_TICKET_OK  2

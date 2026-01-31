@@ -1,5 +1,13 @@
 #include "common.h"
 
+volatile sig_atomic_t evac_flag = 0;
+
+void evacuate(int sig)
+{
+    (void)sig;
+    evac_flag = 1;
+}
+
 static shared_data_t *d = NULL;
 
 void aggression(int sig)
@@ -7,11 +15,6 @@ void aggression(int sig)
     (void)sig;
 }
 
-void evacuate(int sig)
-{
-    (void)sig;
-    d->evacuation = 1;
-}
 int main(void)
 {
     srand(getpid());
@@ -45,11 +48,9 @@ int main(void)
 
     msg_t req, res;
 
-    sleep(rand() % 5);
-
-    while (!d->evacuation)
+    while (!d->evacuation && !evac_flag)
     {
-        if (first_time)
+        if (first_time && !evac_flag)
         {
             printf("[FAN %d] Kibic drużyny %c podchodzi do kasy\n",
                 my_id,
@@ -78,10 +79,24 @@ int main(void)
             my_id, req.sector);
         fflush(stdout);
 
+        if (msgsnd(msqid, &req, sizeof(req) - sizeof(long), 0) == -1)
+        {
+            if (errno == EINTR || errno == EIDRM) break;
 
-        if (msgsnd(msqid, &req, sizeof(req) - sizeof(long), 0) == -1) continue;
+            continue;
+        }
 
-        if (msgrcv(msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK, 0) == -1) continue;
+        ssize_t r = msgrcv( msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK, 0);
+
+        if (r == -1)
+        {
+            if (errno == EINTR && evac_flag) break;
+
+            continue;
+        }
+
+        if (d->evacuation) break;
+
 
         if (res.tickets)
         {
@@ -97,10 +112,24 @@ int main(void)
             gate_req.team = team;
             gate_req.sector = res.sector;
 
-            if (msgsnd(msqid, &gate_req, sizeof(gate_req)-sizeof(long), 0) == -1) continue;
+            if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), 0) == -1)
+            {
+                if (errno == EINTR || errno == EIDRM) break;
+
+                continue;
+            }
 
             long my_type = MSG_GATE_RESPONSE + my_id;
-            msgrcv(msqid, &gate_res, sizeof(gate_res)-sizeof(long), my_type, 0);
+            ssize_t gr = msgrcv( msqid, &gate_res, sizeof(gate_res) - sizeof(long), my_type, 0);
+
+            if (gr == -1)
+            {
+                if (errno == EINTR && evac_flag) break;
+
+                continue;
+            }
+
+            if (d->evacuation) break;
 
             if (d->priority[my_id])
             {

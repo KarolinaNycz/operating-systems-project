@@ -1,11 +1,13 @@
 #include "common.h"
 
+volatile sig_atomic_t evac_flag = 0;
+
 static shared_data_t *d = NULL;
 
-void evacuate(int s)
+void evacuate(int sig)
 {
-    (void)s;
-    d->evacuation = 1;
+    (void)sig;
+    evac_flag = 1;
 }
 
 int main(void) 
@@ -25,13 +27,22 @@ int main(void)
     if (d == (void *)-1) fatal_error("tech shmat");
     msg_t req, res;
 
-    while (!d->evacuation)
+    while (!d->evacuation && !evac_flag)
     {
-        if (msgrcv(msqid, &req, sizeof(req)-sizeof(long), MSG_GATE_REQUEST, 0) == -1) continue;
+        ssize_t r = msgrcv( msqid, &req, sizeof(req) - sizeof(long), MSG_GATE_REQUEST, 0);
+
+        if (r == -1)
+        {
+            if (errno == EINTR && evac_flag) break;
+
+            continue;
+        }
+
+        if (d->evacuation) break;
 
         int gate = -1;
 
-        while (!d->evacuation)
+        while (!d->evacuation && !evac_flag)
         {
             sem_lock(semid);
 
@@ -92,6 +103,7 @@ int main(void)
             sem_unlock(semid);
 
             if (gate != -1) break;
+            if (evac_flag) break;
 
         }
         
@@ -110,7 +122,10 @@ int main(void)
         res.pid = req.pid;
         res.tickets = gate;
 
-        msgsnd(msqid, &res, sizeof(res)-sizeof(long), 0);
+        if (msgsnd(msqid, &res, sizeof(res)-sizeof(long), 0) == -1)
+        {
+            if (errno == EINTR || errno == EIDRM) break;
+        }
 
     }
 
