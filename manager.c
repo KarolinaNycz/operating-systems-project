@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <string.h>
 #include <stdatomic.h>
+#include <sched.h>
 
 #include "common.h"
 
@@ -13,6 +14,7 @@ volatile sig_atomic_t evac_flag = 0;
 static int g_shmid = -1;
 static int g_msqid = -1;
 static int g_semid = -1;
+static pid_t cashier_pids[10];
 
 static shared_data_t *d = NULL;
 
@@ -21,21 +23,9 @@ void cleanup(void)
     printf("\n[MANAGER] Zamykanie systemu...\n");
     fflush(stdout);
 
-    kill(0, SIGTERM);
-
     pid_t pid;
 
-    while (1)
-    {
-        pid = waitpid(-1, NULL, 0);
-
-        if (pid > 0) continue;
-
-        if (pid == -1 && errno == EINTR) continue;
-
-        break;
-    }
-
+    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0);
 
     if (d) shmdt(d);
 
@@ -51,13 +41,18 @@ void cleanup(void)
 
 void cleanup_handler(int sig)
 {
-    (void) sig;
+    (void)sig;
+
     quit_flag = 1;
+    evac_flag = 1;
 }
+
 
 void evacuation_handler(int s)
 {
     (void)s;
+
+    if (evac_flag) return;
 
     evac_flag = 1;
     quit_flag = 1;
@@ -76,7 +71,7 @@ int main(void)
 
     sa.sa_handler = evacuation_handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags = 0;
 
     sigaction(SIG_EVACUATE, &sa, NULL);
 
@@ -91,12 +86,17 @@ int main(void)
 
     for (int i = 0; i < MIN_CASHIERS; i++)
     {
-        if (!fork())
-	    {
+        pid_t p = fork();
+
+        if (p == 0)
+        {
             execl("./cashier", "cashier", NULL);
             fatal_error("execl cashier");
         }
+
+        cashier_pids[i] = p;
     }
+
 
     for (int i = 0; i < MAX_FANS; i++)
     {
@@ -108,37 +108,101 @@ int main(void)
     }
 
 
-    if (!fork())
+    for (int i = 0; i < MAX_SECTORS * GATES_PER_SECTOR; i++)
     {
-        execl("./tech", "tech", NULL);
-        fatal_error("execl tech");
+        if (!fork())
+        {
+            execl("./tech", "tech", NULL);
+            fatal_error("execl tech");
+        }
     }
+
 
     msg_t msg;
-    while (1)
+
+    while (!evac_flag)
     {
-        ssize_t r = msgrcv( g_msqid, &msg, sizeof(msg) - sizeof(long), 0, 0);
+        if (sem_lock(g_semid, 2) == -1) break;
 
-        if (r >= 0) break;
+        int total = 0;
 
-        if (errno == EINTR && evac_flag) break;
+        for (int i = 0; i < MAX_SECTORS; i++) total += d->sector_taken[i];
 
-        if (errno == EINTR) continue;
+        if (total >= d->total_capacity)
+        {
+            printf("[MANAGER] Stadion pelny – ewakuacja\n"); 
+            evac_flag = 1;
+            break;
+        }
 
-        fatal_error("manager msgrcv");
+        int K = d->ticket_queue;
+        int N = d->active_cashiers;
+
+        if (N < 2) N = 2;
+
+        // zamykanie
+        if (N > 2 && K < (K / 10.0) * (N - 1))
+        {
+            pid_t p = cashier_pids[N - 1];
+
+            kill(p, SIGTERM);
+
+            d->active_cashiers--;
+
+            printf("[MANAGER] Zamykam kase (%d aktywnych)\n", d->active_cashiers);
+        }
+
+        // otwieranie
+        if (N < 10 && K > 20)
+        {
+            pid_t p = fork();
+
+            if (p == 0)
+            {
+                execl("./cashier", "cashier", NULL);
+                fatal_error("execl cashier");
+            }
+
+            cashier_pids[N] = p;
+            d->active_cashiers++;
+
+            printf("[MANAGER] Otwieram kase (%d aktywnych)\n", d->active_cashiers);
+        }
+
+        if (sem_unlock(g_semid, 2) == -1) break;
+
+        ssize_t r = msgrcv( g_msqid, &msg, sizeof(msg) - sizeof(long), 0, IPC_NOWAIT);
+
+        if (r >= 0 && msg.mtype == MSG_SECTOR_EMPTY) break;
+
+        if (r == -1)
+        {
+            if (errno == ENOMSG || errno == EINTR || errno == EIDRM)
+            {
+            
+            }
+
+            else
+            {
+                fatal_error("manager msgrcv");
+            }
+        }
+
+        sched_yield();
     }
 
-    sem_lock(g_semid);
-    d->evacuation = 1;
-    sem_unlock(g_semid);
-
-    kill(0, SIG_EVACUATE);
-
-    while (!quit_flag)
+    if (sem_lock(g_semid, 2) == 0)
     {
-        pause();
+        d->evacuation = 1;
+        sem_unlock(g_semid, 2);
     }
 
+
+
+    printf("[MANAGER] Ewakuacja\n");
+    fflush(stdout);
+
+    kill(-getpgrp(), SIG_EVACUATE);
     cleanup();
     return 0;
 

@@ -19,7 +19,8 @@
 #define IPC_KEY 11
 #define MAX_SECTORS 8
 #define MIN_CASHIERS 2
-#define MAX_FANS 500
+#define MAX_CASHIERS 10
+#define MAX_FANS 500 //ile fanow
 #define GATES_PER_SECTOR 2
 #define MAX_GATE_CAPACITY 3
 
@@ -31,6 +32,7 @@
 #define MSG_GATE_RESPONSE 11
 #define MSG_GATE_LEAVE    12
 #define MSG_GATE_REJECT 13
+#define FLARE_PROB 5   // 0.5% ze ma race (5 / 1000)
 
 typedef struct 
 {
@@ -45,6 +47,8 @@ typedef struct
     int gate_wait[MAX_FANS];
     int priority[MAX_FANS];
     int gate_queue[MAX_SECTORS];
+    int active_cashiers;
+    int ticket_queue;
 } shared_data_t;
 
 typedef struct
@@ -52,10 +56,18 @@ typedef struct
     long mtype;
     pid_t pid;
     int vip;
+    int has_flare; 
     int team;
     int sector;
     int tickets;
 } msg_t;
+
+union semun 
+{
+    int val;
+    struct semid_ds *buf;
+    unsigned short *array;
+};
 
 void fatal_error(const char *msg);
 
@@ -66,16 +78,39 @@ int create_semaphore(void);
 void remove_shared_memory(int shmid);
 void remove_semaphore(int semid);
 
-static inline void sem_lock(int semid)
+static inline int sem_lock(int semid, int num)
 {
-    struct sembuf sb = {0, -1, 0};
-    semop(semid, &sb, 1);
+    struct sembuf sb = {num, -1, SEM_UNDO};
+
+    while (1)
+    {
+        if (semop(semid, &sb, 1) == 0)
+            return 0;
+
+        if (errno == EINTR)
+            return -1;
+
+        perror("semop lock");
+        exit(1);
+    }
 }
 
-static inline void sem_unlock(int semid)
+static inline int sem_unlock(int semid, int num)
 {
-    struct sembuf sb = {0, 1, 0};
-    semop(semid, &sb, 1);
+    struct sembuf sb = {num, 1, SEM_UNDO};
+
+    while (1)
+    {
+        if (semop(semid, &sb, 1) == 0)
+            return 0;
+
+        if (errno == EINTR)
+            return -1;
+
+        perror("semop unlock");
+        exit(1);
+    }
 }
+
 
 #endif

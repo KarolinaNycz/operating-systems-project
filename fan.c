@@ -1,4 +1,8 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "common.h"
+#include <signal.h>
+#include <sched.h>
 
 volatile sig_atomic_t evac_flag = 0;
 
@@ -20,12 +24,21 @@ int main(void)
     srand(getpid());
 
     signal(SIGUSR1, aggression);
-    signal(SIG_EVACUATE, evacuate);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+
+    sa.sa_handler = evacuate;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIG_EVACUATE, &sa, NULL);
 
     int vip = (rand() % 1000) < 3;
+    int has_flare = (rand() % 1000) < FLARE_PROB;
     int team = rand() % 2; //0=A, 1=B
     int patience = 5;
     int first_time = 1;
+    int queued = 0;
 
     int shmid = shmget(ftok(".", IPC_KEY), sizeof(shared_data_t), 0);
     if (shmid < 0) fatal_error("fan shmget");
@@ -33,7 +46,7 @@ int main(void)
     int msqid = msgget(ftok(".", IPC_KEY + 1), 0);
     if (msqid < 0) fatal_error("fan msgget");
 
-    int semid = semget(ftok(".", IPC_KEY + 2), 1, 0);
+    int semid = semget(ftok(".", IPC_KEY + 2), 3, 0);
     if (semid < 0) fatal_error("fan semget");
 
     d = shmat(shmid, NULL, 0);
@@ -41,14 +54,25 @@ int main(void)
     
     int my_id;
 
-    sem_lock(semid);
+    if (sem_lock(semid, 2) != 0)
+    {
+        shmdt(d);
+        return 0;
+    }
+
     my_id = ++d->fan_counter;
-    sem_unlock(semid);
+
+    if (sem_unlock(semid, 2) != 0)
+    {
+        shmdt(d);
+        return 0;
+    }
+
 
 
     msg_t req, res;
 
-    while (!d->evacuation && !evac_flag)
+    while (!evac_flag)
     {
         if (first_time && !evac_flag)
         {
@@ -58,6 +82,19 @@ int main(void)
             fflush(stdout);
             first_time = 0;
         }
+        
+        if (!queued)
+        {
+            if (sem_lock(semid, 2) == -1) break;
+
+            d->ticket_queue++;
+            if (sem_unlock(semid, 2) == -1) break;
+
+
+            queued = 1;
+        }
+
+
 
         if (!vip && patience-- <= 0)
         {
@@ -68,6 +105,7 @@ int main(void)
         req.mtype = MSG_BUY_TICKET;
         req.pid = my_id;
         req.vip = vip;
+        req.has_flare = has_flare;
         req.team = team;
 
         if (team == 0) //A
@@ -90,13 +128,25 @@ int main(void)
 
         if (r == -1)
         {
-            if (errno == EINTR && evac_flag) break;
+            if (errno == EINTR || errno == EIDRM || evac_flag) break;
 
-            continue;
+            fatal_error("fan msgrcv ticket");
         }
+
+
 
         if (d->evacuation) break;
 
+        if (queued)
+        {
+            if (sem_lock(semid, 2) == -1) break;
+
+            if (d->ticket_queue > 0) d->ticket_queue--;
+            if (sem_unlock(semid, 2) == -1) break;
+
+
+            queued = 0;
+        }
 
         if (res.tickets)
         {
@@ -111,6 +161,7 @@ int main(void)
             gate_req.pid = my_id;
             gate_req.team = team;
             gate_req.sector = res.sector;
+            gate_req.has_flare = has_flare; 
 
             if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), 0) == -1)
             {
@@ -119,15 +170,20 @@ int main(void)
                 continue;
             }
 
+            sched_yield();
+
+
             long my_type = MSG_GATE_RESPONSE + my_id;
             ssize_t gr = msgrcv( msqid, &gate_res, sizeof(gate_res) - sizeof(long), my_type, 0);
 
             if (gr == -1)
             {
-                if (errno == EINTR && evac_flag) break;
+                if (errno == EINTR || errno == EIDRM || evac_flag) break;
 
-                continue;
+                fatal_error("fan msgrcv gate");
             }
+
+
 
             if (d->evacuation) break;
 
@@ -142,7 +198,8 @@ int main(void)
             printf("[FAN %d] Wchodzi na hale\n", my_id);
             fflush(stdout);
 
-            sem_lock(semid);
+            if (sem_lock(semid, 1) == -1) break;
+
 
             for (int i = 0; i < GATES_PER_SECTOR; i++)
             {
@@ -156,15 +213,12 @@ int main(void)
                 }
             }
 
-            sem_unlock(semid);
+            if (sem_unlock(semid, 1) == -1) break;
 
-            sleep(1);
 
             break;
         }
 
-
-        sleep(1);
     }
     
     shmdt(d);
