@@ -15,8 +15,19 @@ void evacuate(int sig)
     evac_flag = 1;
 }
 
-int main(void) 
+int main(int argc, char **argv) 
 {
+    if (argc < 3)
+    {
+        fprintf(stderr, "Tech: brak numeru sektora\n");
+        exit(1);
+    }
+
+    int my_sector = atoi(argv[1]);
+    int my_gate   = atoi(argv[2]);
+    
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     srand(getpid());
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -43,94 +54,99 @@ int main(void)
 
     while (!d->evacuation && !evac_flag)
     {
-        ssize_t r = msgrcv( msqid, &req, sizeof(req) - sizeof(long), MSG_GATE_REQUEST, 0);
+        long my_type = MSG_GATE_BASE + my_sector * GATES_PER_SECTOR + my_gate;
 
-        if (r == -1)
-        {
-            if (errno == ENOMSG) continue;
+        ssize_t r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), my_type, 0);
 
-            if (errno == EINTR || errno == EIDRM || evac_flag) break;
+        if (r <= 0) continue;
 
-            fatal_error("tech msgrcv");
-        }
-
+        //printf("[TECH %d/%d] Obsługuję fana %d\n", my_sector, my_gate, req.pid);
+        //fflush(stdout);
 
         if (d->evacuation) break;
+
+        sem_lock(semid, 3 + req.sector);
+
+        sem_unlock(semid, 3 + req.sector);
 
         int gate = -1;
 
         while (!d->evacuation && !evac_flag)
         {
-            if (sem_lock(semid, 1) == -1) break;
+            if (sem_lock(semid, 3 + req.sector) == -1) continue;
 
-
-            for (int i = 0; i < GATES_PER_SECTOR; i++)
-            {
-                int count = d->gate_count[req.sector][i];
-                int gteam = d->gate_team[req.sector][i];
-
-                // PRIORYTET - wchodzi zawsze gdy jest miejsce
-                if (d->priority[req.pid] && (count < MAX_GATE_CAPACITY))
-                {
-                    d->gate_count[req.sector][i]++;
-                    d->gate_team[req.sector][i] = req.team;
-
-                    d->priority[req.pid] = 0;
-
-                    gate = i;
-                    break;
-                }
-
-
-                if (count == 0)
-                {
-                    d->gate_team[req.sector][i] = req.team;
-                    d->gate_count[req.sector][i] = 1;
-                    gate = i;
-                    break;
-                }
-
-                if (gteam == req.team && count < MAX_GATE_CAPACITY)
-                {
-                    d->gate_count[req.sector][i]++;
-                    gate = i;
-                    break;
-                }
-
-
+            int i = my_gate;
             
-            }
-            
+            int count = d->gate_count[req.sector][i];
+            int gteam = d->gate_team[req.sector][i];
 
+            // Zablokowany przez inny team → liczymy do priorytetu
+            if (count > 0 && gteam != req.team && count < MAX_GATE_CAPACITY && !d->priority[req.pid])
+            {
+                d->gate_wait[req.pid]++;
 
-            if (gate == -1)
-            {
-                d->gate_queue[req.sector]++;
-            }
-            else
-            {
-                if (d->gate_queue[req.sector] > 0) d->gate_queue[req.sector]--;
-            }
+                if (d->gate_wait[req.pid] >= 5)
+                {
+                    d->priority[req.pid] = 1;
 
-            if (d->gate_queue[req.sector] > 1 && !d->priority[req.pid])
-            {
-                d->priority[req.pid] = 1;
-                printf("[TECH] Fan %d dostaje priorytet (kolejka=%d)\n", req.pid, d->gate_queue[req.sector]);
+                    printf("[TECH] Fan %d dostaje priorytet na bramce bezpieczenstwa\n", req.pid);
+                    fflush(stdout);
+                }
             }
 
-            if (sem_unlock(semid, 1) == -1)
+
+            /* PRIORYTET: wchodzi zawsze gdy jest miejsce */
+            if (d->priority[req.pid] && count < MAX_GATE_CAPACITY)
             {
-                evac_flag = 1;
+                d->gate_count[req.sector][i]++;
+                d->gate_team[req.sector][i] = req.team;
+                gate = i;
+                sem_unlock(semid, 3 + req.sector);
                 break;
             }
 
+            if (count == 0)
+            {
+                d->gate_team[req.sector][i] = req.team;
+                d->gate_count[req.sector][i] = 1;
+                gate = i;
+                sem_unlock(semid, 3 + req.sector);
+                break;
+            }
 
+            if (gteam == req.team && count < MAX_GATE_CAPACITY)
+            {
+                d->gate_count[req.sector][i]++;
+                gate = i;
+                sem_unlock(semid, 3 + req.sector);
+                break;
+            }
 
-            if (gate != -1 || evac_flag) break;
+            printf("[TECH %d/%d] obsluguję fana %d\n", my_sector, my_gate, req.pid);
+            fflush(stdout);
 
+            if (gate != -1 || evac_flag)
+            {
+                sem_unlock(semid, 3 + req.sector);
+                break;
+            }    
         }
         
         if (gate == -1) continue;
+
+        sem_lock(semid, 3 + req.sector);
+
+        int f = queue_front(&d->gate_queue[req.sector]);
+
+        if (f == req.pid)
+        {
+            queue_pop(&d->gate_queue[req.sector]);
+        }
+
+        d->gate_wait[req.pid] = 0;
+        d->priority[req.pid] = 0;
+
+        sem_unlock(semid, 3 + req.sector);
 
         printf("[Bramka %d] Sprawdzam fana %d (sektor %d, team %c)\n", 
             gate, req.pid, req.sector,
@@ -145,43 +161,46 @@ int main(void)
 
             kill(req.pid, SIGKILL);
 
-            if (sem_lock(semid, 1) == -1) break;
+            if (sem_lock(semid, 3 + req.sector) == -1) break;
 
 
-            // zwalniamy miejsce w bramce
-            for (int i = 0; i < GATES_PER_SECTOR; i++)
+            // zwalnianie miejsca w bramce
+            int i = my_gate;
+
+            if (d->gate_team[req.sector][i] == req.team && d->gate_count[req.sector][i] > 0)
             {
-                if (d->gate_team[req.sector][i] == req.team && d->gate_count[req.sector][i] > 0)
-                {
-                    d->gate_count[req.sector][i]--;
+                d->gate_count[req.sector][i]--;
 
-                    if (d->gate_count[req.sector][i] == 0)
-                        d->gate_team[req.sector][i] = -1;
-
-                    break;
-                }
+                if (d->gate_count[req.sector][i] == 0) d->gate_team[req.sector][i] = -1;
             }
 
-            if (sem_unlock(semid, 1) == -1)
-            {
-                evac_flag = 1;
-                break;
-            }
+            sem_unlock(semid, 3 + req.sector);
 
             continue;
         }
 
-        printf("[Bramka %d] Fan %d bezpieczny\n",
-                gate, req.pid);
+        printf("[Bramka %d] Fan %d bezpieczny\n", gate, req.pid);
         fflush(stdout);
 
-        res.mtype = MSG_GATE_RESPONSE + req.pid;
-        res.pid = req.pid;
+        /* ZWALNIAMY MIEJSCE NA BRAMCE */
+        if (sem_lock(semid, 3 + req.sector) == -1) break;
+
+        if (d->gate_count[req.sector][gate] > 0)
+        {
+            d->gate_count[req.sector][gate]--;
+
+            if (d->gate_count[req.sector][gate] == 0) d->gate_team[req.sector][gate] = -1;
+        }
+
+        sem_unlock(semid, 3 + req.sector);
+
+        res.mtype  = MSG_GATE_RESPONSE + req.pid;
+        res.pid    = req.pid;
         res.tickets = gate;
 
         if (msgsnd(msqid, &res, sizeof(res)-sizeof(long), 0) == -1)
         {
-            if (errno == EINTR || errno == EIDRM) break;
+            if (errno != EINTR && errno != EIDRM) perror("tech send response");
         }
 
         sched_yield();

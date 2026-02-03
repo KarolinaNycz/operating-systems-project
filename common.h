@@ -17,7 +17,9 @@
 #define SIG_EVACUATE SIGUSR2
 
 #define IPC_KEY 11
-#define MAX_SECTORS 8
+#define MAX_SECTORS 9   // 0-7 normalne, 8 = VIP
+#define VIP_SECTOR 8
+
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
 #define MAX_FANS 500 //ile fanow
@@ -25,6 +27,7 @@
 #define MAX_GATE_CAPACITY 3
 
 #define MSG_BUY_TICKET 1
+#define MSG_BUY_TICKET_VIP 5
 #define MSG_TICKET_OK  2
 #define MSG_SECTOR_EMPTY 3
 
@@ -32,11 +35,23 @@
 #define MSG_GATE_RESPONSE 11
 #define MSG_GATE_LEAVE    12
 #define MSG_GATE_REJECT 13
-#define FLARE_PROB 5   // 0.5% ze ma race (5 / 1000)
+#define MSG_GATE_BASE 3000
+#define FLARE_PROB 5  // 0.5% ze ma race (5 / 1000)
+
+#define MAX_QUEUE 1000
+
+typedef struct 
+{
+    int buf[MAX_QUEUE];
+    int head;
+    int tail;
+    int size;
+} gate_queue_t;
 
 typedef struct 
 {
     int fan_counter;
+    int vip_count;
     int total_capacity;
     int sector_capacity[MAX_SECTORS];
     int gate_count[MAX_SECTORS][GATES_PER_SECTOR];
@@ -46,9 +61,11 @@ typedef struct
     int evacuation;
     int gate_wait[MAX_FANS];
     int priority[MAX_FANS];
-    int gate_queue[MAX_SECTORS];
     int active_cashiers;
     int ticket_queue;
+    int vip_queue;
+
+    gate_queue_t gate_queue[MAX_SECTORS];
 } shared_data_t;
 
 typedef struct
@@ -111,6 +128,34 @@ static inline int sem_unlock(int semid, int num)
         exit(1);
     }
 }
+
+static inline void queue_push(gate_queue_t *q, int pid)
+{
+    if (q->size >= MAX_QUEUE) return;
+
+    q->buf[q->tail] = pid;
+    q->tail = (q->tail + 1) % MAX_QUEUE;
+    q->size++;
+}
+
+static inline int queue_pop(gate_queue_t *q)
+{
+    if (q->size == 0) return -1;
+
+    int pid = q->buf[q->head];
+    q->head = (q->head + 1) % MAX_QUEUE;
+    q->size--;
+
+    return pid;
+}
+
+static inline int queue_front(gate_queue_t *q)
+{
+    if (q->size == 0) return -1;
+
+    return q->buf[q->head];
+}
+
 
 
 #endif

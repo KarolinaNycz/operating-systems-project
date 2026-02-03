@@ -18,12 +18,12 @@ int create_shared_memory(void)
     if (d == (void *)-1) fatal_error("shmat");
 
     memset(d, 0, sizeof(*d));
+
     d->active_cashiers = MIN_CASHIERS;
     d->ticket_queue = 0;
-    d->total_capacity = 1000; //ile miejsc na stadionie
-    
-    for (int i = 0; i < MAX_SECTORS; i++)
-    d->gate_queue[i] = 0;
+    d->total_capacity = 600; //ile miejsc na stadionie
+    d->vip_count = 0;
+    d->vip_queue = 0;
 
     for (int s = 0; s < MAX_SECTORS; s++)
     {
@@ -33,8 +33,14 @@ int create_shared_memory(void)
         }
     }
 
+    for (int i = 0; i < MAX_SECTORS; i++) d->sector_capacity[i] = d->total_capacity / MAX_SECTORS;
+
     for (int i = 0; i < MAX_SECTORS; i++)
-        d->sector_capacity[i] = d->total_capacity / MAX_SECTORS;
+    {
+        d->gate_queue[i].head = 0;
+        d->gate_queue[i].tail = 0;
+        d->gate_queue[i].size = 0;
+    }
 
     shmdt(d);
     return shmid;
@@ -56,7 +62,8 @@ int create_semaphore(void)
     key_t key = ftok(".", IPC_KEY + 2);
     if (key == -1) fatal_error("ftok sem");
 
-    int semid = semget(key, 3, IPC_CREAT | 0666);
+    int semid = semget(key, 3 + MAX_SECTORS, IPC_CREAT | 0666); // 3 global + MAX_SECTORS sektorowych
+
     if (semid == -1) fatal_error("semget");
 
     union semun arg;
@@ -69,6 +76,12 @@ int create_semaphore(void)
 
     arg.val = 1;
     semctl(semid, 2, SETVAL, arg);
+
+    for (int i = 0; i < MAX_SECTORS; i++)
+    {
+        arg.val = 1;
+        semctl(semid, 3 + i, SETVAL, arg);
+    }
 
     return semid;
 }

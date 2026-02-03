@@ -21,6 +21,8 @@ void aggression(int sig)
 
 int main(void)
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     srand(getpid());
 
     signal(SIGUSR1, aggression);
@@ -33,12 +35,12 @@ int main(void)
 
     sigaction(SIG_EVACUATE, &sa, NULL);
 
-    int vip = (rand() % 1000) < 3;
     int has_flare = (rand() % 1000) < FLARE_PROB;
     int team = rand() % 2; //0=A, 1=B
     int patience = 5;
     int first_time = 1;
     int queued = 0;
+    int in_gate_queue = 0;
 
     int shmid = shmget(ftok(".", IPC_KEY), sizeof(shared_data_t), 0);
     if (shmid < 0) fatal_error("fan shmget");
@@ -61,6 +63,7 @@ int main(void)
     }
 
     my_id = ++d->fan_counter;
+    d->gate_wait[my_id] = 0;
 
     if (sem_unlock(semid, 2) != 0)
     {
@@ -68,33 +71,57 @@ int main(void)
         return 0;
     }
 
+    int vip = 0;
 
+    sem_lock(semid, 2);
 
+    double limit = 0.003 * d->fan_counter;
+
+    if (d->vip_count < limit && (rand() % 1000) < 3)
+    {
+        vip = 1;
+        d->vip_count++;
+    }
+
+    sem_unlock(semid, 2);
+
+    if (vip)
+    {
+        printf("[FAN %d] VIP (vip=%d / all=%d)\n", my_id, d->vip_count, d->fan_counter);
+        fflush(stdout);
+    }
     msg_t req, res;
 
     while (!evac_flag)
     {
         if (first_time && !evac_flag)
         {
-            printf("[FAN %d] Kibic drużyny %c podchodzi do kasy\n",
-                my_id,
-                team == 0 ? 'A' : 'B');
+            if (vip)
+            {
+                printf("[VIP %d] Podchodzi do kasy bez kolejki\n", my_id);
+            }
+            else
+            {
+                printf("[FAN %d] Kibic drużyny %c podchodzi do kasy\n", my_id, team == 0 ? 'A' : 'B');
+            }
+
             fflush(stdout);
             first_time = 0;
         }
         
         if (!queued)
         {
-            if (sem_lock(semid, 2) == -1) break;
+            sem_lock(semid, 2);
 
-            d->ticket_queue++;
-            if (sem_unlock(semid, 2) == -1) break;
+            if (vip)
+                d->vip_queue++;
+            else
+                d->ticket_queue++;
 
+            sem_unlock(semid, 2);
 
             queued = 1;
         }
-
-
 
         if (!vip && patience-- <= 0)
         {
@@ -102,16 +129,32 @@ int main(void)
             break;
         }
 
-        req.mtype = MSG_BUY_TICKET;
+        if (vip)
+        {
+            req.mtype = MSG_BUY_TICKET_VIP;
+        }
+        else
+        {
+            req.mtype = MSG_BUY_TICKET;
+        }
+
         req.pid = my_id;
         req.vip = vip;
         req.has_flare = has_flare;
         req.team = team;
 
-        if (team == 0) //A
-            req.sector = rand() % (MAX_SECTORS / 2);
-        else //B
-            req.sector = (MAX_SECTORS / 2) + rand() % (MAX_SECTORS / 2);
+        if (vip)
+        {
+            req.sector = VIP_SECTOR;   // sektor VIP
+        }
+        else if (team == 0) // A
+        {
+            req.sector = rand() % 4;   // sektory 0-3
+        }
+        else // B
+        {
+            req.sector = 4 + rand() % 4; // sektory 4-7
+        }
 
         printf("[FAN %d] Chce kupic bilet na sektor %d\n",
             my_id, req.sector);
@@ -124,7 +167,7 @@ int main(void)
             continue;
         }
 
-        ssize_t r = msgrcv( msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK, 0);
+        ssize_t r = msgrcv( msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK + my_id, 0);
 
         if (r == -1)
         {
@@ -133,57 +176,89 @@ int main(void)
             fatal_error("fan msgrcv ticket");
         }
 
-
-
         if (d->evacuation) break;
+
+        if (res.tickets && vip)
+        {
+            printf("[VIP %d] Kupil bilet na sektor VIP\n", my_id);
+            fflush(stdout);
+        }
 
         if (queued)
         {
-            if (sem_lock(semid, 2) == -1) break;
+            sem_lock(semid, 2);
 
-            if (d->ticket_queue > 0) d->ticket_queue--;
-            if (sem_unlock(semid, 2) == -1) break;
+            if (vip && d->vip_queue > 0)
+                d->vip_queue--;
+            else if (!vip && d->ticket_queue > 0)
+                d->ticket_queue--;
 
+            sem_unlock(semid, 2);
 
             queued = 0;
         }
 
-        if (res.tickets)
+        if (res.tickets && vip)
         {
-
-            printf("[FAN %d] Ma bilet na sektor %d, szuka bramki...\n",
-                my_id, res.sector);
+            printf("[VIP %d] Wchodzi bez kontroli do sektora VIP\n", my_id);
             fflush(stdout);
-            
-            msg_t gate_req, gate_res;
+            break;
+        }
 
-            gate_req.mtype = MSG_GATE_REQUEST;
+        if (res.tickets && !vip)
+        {
+            printf("[FAN %d] Ma bilet na sektor %d, szuka bramki...\n", my_id, res.sector);
+            fflush(stdout);
+
+            msg_t gate_req;
+
+            int gate = rand() % GATES_PER_SECTOR;
+
+            gate_req.mtype = MSG_GATE_BASE + res.sector * GATES_PER_SECTOR + gate;
             gate_req.pid = my_id;
             gate_req.team = team;
             gate_req.sector = res.sector;
-            gate_req.has_flare = has_flare; 
+
+            gate_req.has_flare = has_flare;
 
             if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), 0) == -1)
             {
-                if (errno == EINTR || errno == EIDRM) break;
-
-                continue;
+                if (errno != EINTR && errno != EIDRM) perror("fan gate msgsnd");
             }
+
+            if (!in_gate_queue)
+            {
+                sem_lock(semid, 1);
+                queue_push(&d->gate_queue[res.sector], my_id);
+                sem_unlock(semid, 1);
+
+                in_gate_queue = 1;
+            }
+
+            msg_t gate_res;
+
 
             sched_yield();
 
 
             long my_type = MSG_GATE_RESPONSE + my_id;
-            ssize_t gr = msgrcv( msqid, &gate_res, sizeof(gate_res) - sizeof(long), my_type, 0);
 
-            if (gr == -1)
+            while (!evac_flag)
             {
-                if (errno == EINTR || errno == EIDRM || evac_flag) break;
+                ssize_t gr = msgrcv(msqid, &gate_res, sizeof(gate_res) - sizeof(long), my_type, IPC_NOWAIT);
+
+                if (gr >= 0) break;   // dostał odpowiedź
+
+                if (errno == ENOMSG)
+                {
+                    sched_yield();   // czekaj spokojnie
+                    continue;
+                }
+
+                if (errno == EINTR || errno == EIDRM) break;
 
                 fatal_error("fan msgrcv gate");
             }
-
-
 
             if (d->evacuation) break;
 
@@ -198,23 +273,7 @@ int main(void)
             printf("[FAN %d] Wchodzi na hale\n", my_id);
             fflush(stdout);
 
-            if (sem_lock(semid, 1) == -1) break;
-
-
-            for (int i = 0; i < GATES_PER_SECTOR; i++)
-            {
-                if (d->gate_team[res.sector][i] == team && d->gate_count[res.sector][i] > 0)
-                {
-                    d->gate_count[res.sector][i]--;
-
-                    if (d->gate_count[res.sector][i] == 0) d->gate_team[res.sector][i] = -1;
-
-                    break;
-                }
-            }
-
-            if (sem_unlock(semid, 1) == -1) break;
-
+            in_gate_queue = 0;
 
             break;
         }

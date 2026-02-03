@@ -62,6 +62,8 @@ void evacuation_handler(int s)
 
 int main(void)
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     signal(SIGINT, cleanup_handler);
     signal(SIGTERM, cleanup_handler);
     signal(SIGQUIT, cleanup_handler);
@@ -108,14 +110,23 @@ int main(void)
     }
 
 
-    for (int i = 0; i < MAX_SECTORS * GATES_PER_SECTOR; i++)
+    for (int s = 0; s < MAX_SECTORS; s++)
     {
-        if (!fork())
+        for (int g = 0; g < GATES_PER_SECTOR; g++)
         {
-            execl("./tech", "tech", NULL);
-            fatal_error("execl tech");
+            if (!fork())
+            {
+                char buf1[8], buf2[8];
+
+                sprintf(buf1, "%d", s);
+                sprintf(buf2, "%d", g);
+
+                execl("./tech", "tech", buf1, buf2, NULL);
+                fatal_error("execl tech");
+            }
         }
     }
+
 
 
     msg_t msg;

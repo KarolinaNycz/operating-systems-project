@@ -22,6 +22,8 @@ void evacuate(int sig)
 
 int main(void)
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     struct sigaction sb;
     memset(&sb, 0, sizeof(sb));
 
@@ -60,28 +62,36 @@ int main(void)
 
     while (!d->evacuation && !evac_flag && !quit_flag)
     {
-        ssize_t r = msgrcv( msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET, 0);
+        ssize_t r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT);
+
         if (r == -1)
         {
-            if (errno == ENOMSG) continue;
+            r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET, 0);
+        }
 
+        if (r == -1)
+        {
             if (errno == EINTR || errno == EIDRM || evac_flag || quit_flag) break;
+
+            if (errno == ENOMSG) continue;
 
             fatal_error("cashier msgrcv");
         }
 
-
         if (d->evacuation) break;
         
-        printf("[CASHIER] Fan %d (Team %c) chce sektor %d\n",
-            req.pid,
-            req.team == 0 ? 'A' : 'B',
-            req.sector);
+        printf("[CASHIER] Fan %d (Team %c) chce sektor %d\n", req.pid, req.team == 0 ? 'A' : 'B', req.sector);
         fflush(stdout);
+
+        if (req.vip)
+        {
+            printf("[CASHIER] Obsluguje VIP-a %d...\n", req.pid);
+            fflush(stdout);
+        }
 
         int sector = req.sector;
 
-        res.mtype = MSG_TICKET_OK;
+        res.mtype = MSG_TICKET_OK + req.pid;
         res.pid = req.pid;
         res.team = req.team;
         res.sector = sector;
