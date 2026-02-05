@@ -65,6 +65,7 @@ typedef struct
     int ticket_queue;
     int vip_queue;
 
+    int last_adult_id;
     gate_queue_t gate_queue[MAX_SECTORS];
 } shared_data_t;
 
@@ -77,6 +78,8 @@ typedef struct
     int team;
     int sector;
     int tickets;
+    int age;        // wiek fana
+    int guardian;   // pid opiekuna (0 = brak)
 } msg_t;
 
 union semun 

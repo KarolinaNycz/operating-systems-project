@@ -24,6 +24,7 @@ int create_shared_memory(void)
     d->total_capacity = 600; //ile miejsc na stadionie
     d->vip_count = 0;
     d->vip_queue = 0;
+    d->last_adult_id = 0;
 
     for (int s = 0; s < MAX_SECTORS; s++)
     {

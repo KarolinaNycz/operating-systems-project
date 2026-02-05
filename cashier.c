@@ -82,6 +82,22 @@ int main(void)
         
         printf("[CASHIER] Fan %d (Team %c) chce sektor %d\n", req.pid, req.team == 0 ? 'A' : 'B', req.sector);
         fflush(stdout);
+        // Sprawdzanie dziecka
+        if (req.age < 15)
+        {
+            if (req.guardian == 0)
+            {
+                printf("[CASHIER] Dziecko %d bez opiekuna – odmowa\n", req.pid);
+
+                res.tickets = 0;
+
+                msgsnd(msqid, &res, sizeof(res)-sizeof(long), 0);
+
+                continue;
+            }
+
+            printf("[CASHIER] Dziecko %d z opiekunem %d\n", req.pid, req.guardian);
+        }   
 
         if (req.vip)
         {

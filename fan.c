@@ -38,6 +38,8 @@ int main(void)
     int has_flare = (rand() % 1000) < FLARE_PROB;
     int team = rand() % 2; //0=A, 1=B
     int patience = 5;
+    int age;
+    int guardian = 0;
     int first_time = 1;
     int queued = 0;
     int in_gate_queue = 0;
@@ -61,9 +63,36 @@ int main(void)
         shmdt(d);
         return 0;
     }
+    // 10% dzieci
+    if ((rand() % 100) < 10)
+    {
+        age = 10 + rand() % 5; // 10-14
+    }
+    else
+    {
+        age = 18 + rand() % 40; // dorośli
+    }
 
     my_id = ++d->fan_counter;
     d->gate_wait[my_id] = 0;
+
+    if (age < 15)
+    {
+        guardian = d->last_adult_id;   // ostatni dorosły
+
+        if (guardian == 0) guardian = 0;
+    }
+    else
+    {
+        // zapamiętujemy dorosłego
+        d->last_adult_id = my_id;
+    }
+
+    if (age < 15)
+    {
+    printf("[FAN %d] Dziecko (%d lat), opiekun %d\n", my_id, age, guardian);
+    fflush(stdout);
+    }       
 
     if (sem_unlock(semid, 2) != 0)
     {
@@ -142,6 +171,8 @@ int main(void)
         req.vip = vip;
         req.has_flare = has_flare;
         req.team = team;
+        req.age = age;
+        req.guardian = guardian;
 
         if (vip)
         {
