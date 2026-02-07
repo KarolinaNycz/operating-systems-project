@@ -169,6 +169,16 @@ int main(void)
 
         req.pid = my_id;
         req.vip = vip;
+
+        if (rand() % 100 < 10)
+        {
+            req.want_tickets = 2;
+        }
+        else 
+        {
+            req.want_tickets = 1;
+        }
+
         req.has_flare = has_flare;
         req.team = team;
         req.age = age;
@@ -236,9 +246,19 @@ int main(void)
             break;
         }
 
+        printf("[FAN %d] Kupil %d bilet(y)\n", my_id, res.tickets);
+        fflush(stdout);
+
         if (res.tickets && !vip)
         {
-            printf("[FAN %d] Ma bilet na sektor %d, szuka bramki...\n", my_id, res.sector);
+            if (res.tickets == 2)
+            {
+                printf("[FAN %d] Wraz z osoba towarzyszaca ma bilety na sektor %d, szuka bramki...\n", my_id, res.sector);
+            }
+            else
+            {
+                printf("[FAN %d] Ma bilet na sektor %d, szuka bramki...\n", my_id, res.sector);
+            }
             fflush(stdout);
 
             msg_t gate_req;
@@ -249,8 +269,8 @@ int main(void)
             gate_req.pid = my_id;
             gate_req.team = team;
             gate_req.sector = res.sector;
-
             gate_req.has_flare = has_flare;
+            gate_req.tickets = res.tickets;
 
             if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), 0) == -1)
             {

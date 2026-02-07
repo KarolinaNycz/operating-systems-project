@@ -70,6 +70,7 @@ int main(int argc, char **argv)
         sem_unlock(semid, 3 + req.sector);
 
         int gate = -1;
+        int need = (req.tickets == 2) ? 2 : 1;
 
         while (!d->evacuation && !evac_flag)
         {
@@ -96,7 +97,7 @@ int main(int argc, char **argv)
 
 
             /* PRIORYTET: wchodzi zawsze gdy jest miejsce */
-            if (d->priority[req.pid] && count < MAX_GATE_CAPACITY)
+            if (d->priority[req.pid] && count + need < MAX_GATE_CAPACITY)
             {
                 d->gate_count[req.sector][i]++;
                 d->gate_team[req.sector][i] = req.team;
@@ -105,18 +106,18 @@ int main(int argc, char **argv)
                 break;
             }
 
-            if (count == 0)
+            if (count + need <= MAX_GATE_CAPACITY)
             {
                 d->gate_team[req.sector][i] = req.team;
-                d->gate_count[req.sector][i] = 1;
+                d->gate_count[req.sector][i] += need;
                 gate = i;
                 sem_unlock(semid, 3 + req.sector);
                 break;
             }
 
-            if (gteam == req.team && count < MAX_GATE_CAPACITY)
+            if (gteam == req.team && count + need <= MAX_GATE_CAPACITY)
             {
-                d->gate_count[req.sector][i]++;
+                d->gate_count[req.sector][i] += need;
                 gate = i;
                 sem_unlock(semid, 3 + req.sector);
                 break;
@@ -148,9 +149,15 @@ int main(int argc, char **argv)
 
         sem_unlock(semid, 3 + req.sector);
 
-        printf("[Bramka %d] Sprawdzam fana %d (sektor %d, team %c)\n", 
-            gate, req.pid, req.sector,
-            req.team == 0 ? 'A' : 'B');
+        if (req.tickets == 2)
+        {
+            printf("[Bramka %d] Sprawdzam fana %d wraz z osoba towarzyszaca (sektor %d, team %c)\n", gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+        }
+        else
+        {
+            printf("[Bramka %d] Sprawdzam fana %d (sektor %d, team %c)\n", gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+        }
+
         fflush(stdout);
 
         // Sprawdzenie rac
@@ -165,11 +172,11 @@ int main(int argc, char **argv)
 
 
             // zwalnianie miejsca w bramce
-            int i = my_gate;
+            int i = gate;
 
             if (d->gate_team[req.sector][i] == req.team && d->gate_count[req.sector][i] > 0)
             {
-                d->gate_count[req.sector][i]--;
+                d->gate_count[req.sector][gate] -= need;
 
                 if (d->gate_count[req.sector][i] == 0) d->gate_team[req.sector][i] = -1;
             }
@@ -179,7 +186,15 @@ int main(int argc, char **argv)
             continue;
         }
 
-        printf("[Bramka %d] Fan %d bezpieczny\n", gate, req.pid);
+        if (req.tickets == 2)
+        {
+            printf("[Bramka %d] Fan %d wraz z osoba towarzyszaca bezpieczni\n", gate, req.pid);
+        }
+        else
+        {
+            printf("[Bramka %d] Fan %d bezpieczny\n", gate, req.pid);
+        }
+
         fflush(stdout);
 
         /* ZWALNIAMY MIEJSCE NA BRAMCE */
@@ -187,7 +202,7 @@ int main(int argc, char **argv)
 
         if (d->gate_count[req.sector][gate] > 0)
         {
-            d->gate_count[req.sector][gate]--;
+            d->gate_count[req.sector][gate] -= need;
 
             if (d->gate_count[req.sector][gate] == 0) d->gate_team[req.sector][gate] = -1;
         }

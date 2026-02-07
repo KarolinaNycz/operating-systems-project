@@ -80,6 +80,7 @@ typedef struct
     int tickets;
     int age;        // wiek fana
     int guardian;   // pid opiekuna (0 = brak)
+    int want_tickets;   // ile chce kupić (1 lub 2)
 } msg_t;
 
 union semun 

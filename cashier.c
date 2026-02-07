@@ -114,10 +114,17 @@ int main(void)
         
         if (sem_lock(semid, 0) == -1) break;
 
-        if (d->sector_taken[sector] < d->sector_capacity[sector])
+        int free = d->sector_capacity[sector] - d->sector_taken[sector];
+
+        if (free >= req.want_tickets)
         {
-            d->sector_taken[sector]++;
-            res.tickets = 1;
+            d->sector_taken[sector] += req.want_tickets;
+            res.tickets = req.want_tickets;
+        }
+        else if (free > 0)
+        {
+            d->sector_taken[sector] += free;
+            res.tickets = free;
         }
         else
         {
@@ -133,7 +140,7 @@ int main(void)
         
         if (res.tickets)
         {
-            printf("[CASHIER] Sprzedano bilet fanowi %d na sektor %d\n", req.pid, sector);
+            printf("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d\n", res.tickets, req.pid, sector);
         }
         else
         {
