@@ -48,3 +48,84 @@ Projekt składa się z następujących plików źródłowych:
 - `common.h`  
   Plik nagłówkowy zawierający definicje struktur danych, stałych, typów komunikatów oraz deklaracje funkcji wspólnych dla całego projektu.
 
+  ## 2.2 Zastosowane rozwiązania zwiększające wydajność i stabilność
+
+W celu zapewnienia poprawnego, stabilnego i wydajnego działania systemu zastosowano następujące rozwiązania:
+
+- **Synchronizacja dostępu do danych**  
+  Do kontroli dostępu do pamięci współdzielonej wykorzystano semafory System V, co zapobiega jednoczesnej modyfikacji wspólnych struktur danych przez wiele procesów.
+
+- **Asynchroniczna komunikacja międzyprocesowa**  
+  Zastosowanie kolejek komunikatów umożliwia wymianę informacji pomiędzy procesami bez konieczności ich bezpośredniej synchronizacji.
+
+- **Nieblokujące operacje IPC**  
+  Wykorzystanie trybu `IPC_NOWAIT` zapobiega trwałemu blokowaniu procesów i zwiększa płynność działania symulacji.
+
+- **Obsługa sygnałów systemowych**  
+  Mechanizmy obsługi sygnałów pozwalają na bezpieczne reagowanie na zdarzenia awaryjne, takie jak zakończenie programu, blokada sektorów czy ewakuacja.
+
+- **Dynamiczne zarządzanie zasobami**  
+  Liczba aktywnych kasjerów jest dostosowywana do aktualnego obciążenia systemu, co pozwala na efektywne wykorzystanie dostępnych zasobów.
+
+- **Kontrola przepustowości bramek**  
+  Ograniczenie liczby jednocześnie obsługiwanych kibiców na bramkach zmniejsza ryzyko przeciążenia systemu.
+
+- **Mechanizm priorytetów**  
+  Wprowadzenie priorytetu dla wybranych kibiców zapobiega długiemu oczekiwaniu i poprawia realizm symulacji.
+
+- **Rejestrowanie zdarzeń**  
+  Wszystkie istotne operacje są zapisywane w pliku `raport.txt`, co ułatwia analizę działania systemu oraz wykrywanie błędów.
+
+- **Kontrola poprawności działania procesów**  
+  Zastosowanie obsługi sygnału `SIGCHLD` umożliwia usuwanie procesów zombie i poprawia stabilność systemu.
+
+# 3. Zrealizowane funkcjonalności
+
+W ramach projektu zaimplementowano następujące funkcjonalności systemu:
+
+- **Zarządzanie procesami**  
+  Tworzenie i kontrola procesów managera, kasjerów, techników oraz kibiców.
+
+- **Inicjalizacja mechanizmów IPC**  
+  Tworzenie i konfiguracja pamięci współdzielonej, kolejek komunikatów oraz semaforów System V.
+
+- **Sprzedaż biletów**  
+  Obsługa sprzedaży biletów przez kasjerów z uwzględnieniem dostępności sektorów oraz statusu VIP.
+
+- **Obsługa klientów VIP**  
+  Priorytetowa obsługa kibiców VIP w kolejkach do kas.
+
+- **Kontrola wejścia na stadion**  
+  Weryfikacja kibiców na bramkach przez techników oraz kierowanie ich do odpowiednich sektorów.
+
+- **Zarządzanie pojemnością sektorów**  
+  Monitorowanie liczby zajętych miejsc i blokowanie sprzedaży po osiągnięciu limitu.
+
+- **System kolejek do bramek**  
+  Implementacja kolejek wejściowych dla poszczególnych sektorów.
+
+- **Wykrywanie niebezpiecznych zachowań**  
+  Identyfikacja kibiców posiadających materiały pirotechniczne i usuwanie ich z systemu.
+
+- **Mechanizm priorytetu przy bramkach**  
+  Przyznawanie priorytetu kibicom długo oczekującym w kolejce.
+
+- **Blokowanie i odblokowywanie sektorów**  
+  Możliwość czasowego zamykania wybranych sektorów za pomocą sygnałów systemowych.
+
+- **Procedura ewakuacji**  
+  Automatyczne oraz ręczne uruchamianie ewakuacji i nadzorowanie opróżniania sektorów.
+
+- **Dynamiczne zarządzanie kasami**  
+  Otwieranie i zamykanie kas w zależności od obciążenia systemu.
+
+- **Obsługa sytuacji wyjątkowych**  
+  Reakcja na błędy IPC, sygnały systemowe oraz nieoczekiwane zakończenie procesów.
+
+- **Rejestrowanie przebiegu symulacji**  
+  Zapisywanie zdarzeń i komunikatów do pliku `raport.txt`.
+
+- **Bezpieczne zamykanie systemu**  
+  Zwolnienie zasobów IPC oraz poprawne zakończenie wszystkich procesów.
+
+
