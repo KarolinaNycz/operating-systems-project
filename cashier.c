@@ -68,7 +68,6 @@ int main(void)
     }
 
     logp("[CASHIER] Uruchomiony\n");
-    fflush(stdout);
 
     msg_t req, res;
 
@@ -111,7 +110,6 @@ int main(void)
         }
 
         logp("[CASHIER] Fan %d (Team %c) chce sektor %d\n", req.pid, req.team == 0 ? 'A' : 'B', req.sector);
-        fflush(stdout);
 
         // Sprawdzanie dziecka
         if (req.age < 15)
@@ -119,7 +117,6 @@ int main(void)
             if (req.guardian == 0)
             {
                 logp("[CASHIER] Dziecko %d bez opiekuna - odmowa\n", req.pid);
-                fflush(stdout);
 
                 res.mtype = MSG_TICKET_OK + req.pid;
                 res.tickets = 0;
@@ -135,13 +132,11 @@ int main(void)
             }
 
             logp("[CASHIER] Dziecko %d z opiekunem %d\n", req.pid, req.guardian);
-            fflush(stdout);
         }
 
         if (req.vip)
         {
             logp("[CASHIER] Obsluguje VIP-a %d...\n", req.pid);
-            fflush(stdout);
         }
 
         int sector = req.sector;
@@ -232,7 +227,6 @@ int main(void)
         {
             logp("[CASHIER] Brak miejsc w sektorze %d dla fana %d\n", sector, req.pid);
         }
-        fflush(stdout);
 
         if (msgsnd(msqid, &res, sizeof(res) - sizeof(long), IPC_NOWAIT) == -1)
         {
@@ -260,7 +254,6 @@ int main(void)
             }
             d->cashiers_closing = 0;
             logp("[CASHIER] Zamykam sie (aktywnych: %d)\n", d->active_cashiers);
-            fflush(stdout);
             sem_unlock(semid, 2);
         }
     }

@@ -24,7 +24,7 @@ int create_shared_memory(void)
 
     d->active_cashiers = MIN_CASHIERS;
     d->ticket_queue = 0;
-    d->total_capacity = 600;
+    d->total_capacity = 2000;
     d->vip_count = 0;
     d->vip_queue = 0;
     d->last_adult_id = 0;
@@ -106,8 +106,7 @@ void logp(const char *format, ...)
 {
     int semid = semget(ftok(".", IPC_KEY + 2), 0, 0);
 
-    if (semid != -1)
-        sem_lock(semid, 0);
+    if (semid != -1) sem_lock(semid, 0);
 
     va_list args;
 
@@ -130,6 +129,5 @@ void logp(const char *format, ...)
     }
 
 
-    if (semid != -1)
-        sem_unlock(semid, 0);
+    if (semid != -1) sem_unlock(semid, 0);
 }

@@ -32,7 +32,6 @@ void sigchld_handler(int sig)
 void cleanup(void)
 {
     logp("\n[MANAGER] Zamykanie systemu...\n");
-    fflush(stdout);
 
     pid_t pid;
     int count = 0;
@@ -44,7 +43,6 @@ void cleanup(void)
     if (count > 0)
     {
         logp("[MANAGER] Zebrano %d procesow zombie\n", count);
-        fflush(stdout);
     }
 
     if (d) shmdt(d);
@@ -86,7 +84,6 @@ void block_handler(int sig)
         sem_unlock(g_semid, 2);
 
         logp("[MANAGER] Blokada sektorow\n");
-        fflush(stdout);
     }
 }
 
@@ -102,7 +99,6 @@ void unblock_handler(int sig)
         sem_unlock(g_semid, 2);
 
         logp("[MANAGER] Odblokowanie sektorow\n");
-        fflush(stdout);
     }
 }
 
@@ -268,7 +264,6 @@ int main(void)
     }
 
     logp("[MANAGER] Ewakuacja - wysylam sygnal do grupy procesow\n");
-    fflush(stdout);
 
     // WYCZYSC KOLEJKE BILETOW
     msg_t dump;
@@ -290,10 +285,8 @@ int main(void)
     }
 
     logp("[MANAGER] Forsowne zamykanie fanow...\n");
-    fflush(stdout);
 
     logp("[MANAGER] Czekam na potwierdzenia od %d sektorow...\n", MAX_SECTORS);
-    fflush(stdout);
 
     int empty = 0;
     int iterations = 0;
@@ -305,23 +298,29 @@ int main(void)
         
         if (r >= 0 && msg.mtype == MSG_SECTOR_EMPTY)
         {
+            iterations = 0;   // RESET ZAWSZE
+
             if (!d->sector_reported[msg.sector])
             {
                 d->sector_reported[msg.sector] = 1;
                 empty++;
+
                 logp("[MANAGER] Sektor %d oprozniony (%d/%d)\n", msg.sector, empty, MAX_SECTORS);
-                fflush(stdout);
             }
-            iterations = 0;
         }
+
         else if (r == -1)
         {
             if (errno == ENOMSG)
             {
                 sched_yield();
                 iterations++;
+
+                if (iterations % 1000 == 0) sched_yield();
+
                 continue;
             }
+
             if (errno == EINTR)
             {
                 continue;
@@ -329,20 +328,13 @@ int main(void)
             if (errno == EIDRM)
             {
                 logp("[MANAGER] Kolejka wiadomosci usunieta\n");
-                fflush(stdout);
                 break;
             }
         }
     }
 
-    if (iterations >= max_iterations)
-    {
-        logp("[MANAGER] TIMEOUT - forsowne zamkniecie (otrzymano %d/%d)\n", empty, MAX_SECTORS);
-        fflush(stdout);
-    }
-
+    if (empty == MAX_SECTORS)
     logp("[MANAGER] Otrzymano wszystkie potwierdzenia\n");
-    fflush(stdout);
 
     for (int s = 0; s < MAX_SECTORS; s++)
     {

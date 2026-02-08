@@ -23,7 +23,7 @@
 
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
-#define MAX_FANS 500
+#define MAX_FANS 2100
 #define GATES_PER_SECTOR 2
 #define MAX_GATE_CAPACITY 3
 

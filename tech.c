@@ -71,37 +71,31 @@ int main(int argc, char **argv)
         if (evac_flag || check_evac)
         {
             logp("[TECH %d/%d] TRYB EWAKUACJI- czekam na oproznienie sektora\n",  my_sector, my_gate);
-            fflush(stdout);
 
             int left;
             int wait_iterations = 0;
-            int max_wait = 100000;
+            int max_wait = 10000000;
             do
             {
-                semr = sem_lock(semid, 3 + my_sector);
+                left = d->sector_taken[my_sector];   // bez semafora
 
-                if (semr == -2) continue;
-
-                if (semr == -1) goto cleanup;
-
-                left = d->sector_taken[my_sector];
-                sem_unlock(semid, 3 + my_sector);
+                static int last_left = -1;
 
                 if (left > 0)
                 {
+                    if (left != last_left) wait_iterations = 0;
+
+                    last_left = left;
+
                     sched_yield();
                     wait_iterations++;
 
                     if (wait_iterations > max_wait)
                     {
                         logp("[TECH %d/%d] TIMEOUT - forsowne oproznienie\n", my_sector, my_gate);
-                        fflush(stdout);
                         
-                        if (sem_lock(semid, 3 + my_sector) == 0) 
-                        {
-                            d->sector_taken[my_sector] = 0;
-                            sem_unlock(semid, 3 + my_sector);
-                        }
+                        d->sector_taken[my_sector] = 0;
+
                         break;
                     }
                 }
@@ -109,9 +103,8 @@ int main(int argc, char **argv)
             } while (left > 0); 
 
             logp("[TECH %d/%d] Sektor oprozniony\n", my_sector, my_gate);
-            fflush(stdout);
 
-            if (my_gate == 0)
+            if (!sent_confirmation)
             {
                 msg_t info;
                 info.mtype = MSG_SECTOR_EMPTY;
@@ -119,7 +112,6 @@ int main(int argc, char **argv)
                 info.pid = getpid();
 
                 logp("[TECH %d/%d] Wysylam potwierdzenie do managera...\n", my_sector, my_gate);
-                fflush(stdout);
 
                 int retry = 0;
                 int max_retry = 100000;
@@ -130,7 +122,6 @@ int main(int argc, char **argv)
                     if (msgsnd(msqid, &info, sizeof(info) - sizeof(long), IPC_NOWAIT) == 0)
                     {
                         logp("[TECH %d/%d] Potwierdzenie wyslane!\n", my_sector, my_gate);
-                        fflush(stdout);
                         sent = 1;
                         break;
                     }
@@ -138,7 +129,6 @@ int main(int argc, char **argv)
                     if (errno == EIDRM)
                     {
                         logp("[TECH %d/%d] Kolejka usunieta\n", my_sector, my_gate);
-                        fflush(stdout);
                         break;
                     }
                     
@@ -156,13 +146,11 @@ int main(int argc, char **argv)
                 if (!sent && errno != EIDRM)
                 {
                     logp("[TECH %d/%d] UWAGA: Nie udalo sie wyslac potwierdzenia\n", my_sector, my_gate);
-                    fflush(stdout);
                 }
                 }
                 else
                 {
                     logp("[TECH %d/%d] Sektor oprozniony (bramka pomocnicza)\n", my_sector, my_gate);
-                    fflush(stdout);
                 }
 
                 sent_confirmation = 1;
@@ -222,13 +210,11 @@ int main(int argc, char **argv)
             if (blocked && last_block_state == 0)
             {
                 logp("[TECH %d/%d] Sektor ZABLOKOWANY\n", my_sector, my_gate);
-                fflush(stdout);
             }
 
             if (!blocked && last_block_state == 1)
             {
                 logp("[TECH %d/%d] Sektor ODBLOKOWANY\n", my_sector, my_gate);
-                fflush(stdout);
             }
 
             last_block_state = blocked;
@@ -268,7 +254,6 @@ int main(int argc, char **argv)
                 {
                     d->priority[req.pid] = 1;
                     logp("[TECH %d/%d] Fan %d dostaje priorytet\n", my_sector, my_gate, req.pid);
-                    fflush(stdout);
                 }
             }
 
@@ -314,7 +299,6 @@ int main(int argc, char **argv)
         }
 
         logp("[TECH %d/%d] Obsluguje fana %d\n", my_sector, my_gate, req.pid);
-        fflush(stdout);
 
         semr = sem_lock(semid, 3 + req.sector);
 
@@ -342,13 +326,11 @@ int main(int argc, char **argv)
         {
             logp("[Bramka %d/%d] Sprawdzam fana %d (sektor %d, team %c)\n",  my_sector, gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
         }
-        fflush(stdout);
 
         // Sprawdzenie rac
         if (req.has_flare)
         {
             logp("[Bramka %d/%d] ALARM! Fan %d ma race - WYPROWADZENIE\n", my_sector, gate, req.pid);
-            fflush(stdout);
 
             kill(req.pid, SIGKILL);
 
@@ -379,7 +361,6 @@ int main(int argc, char **argv)
         {
             logp("[Bramka %d/%d] Fan %d bezpieczny\n", my_sector, gate, req.pid);
         }
-        fflush(stdout);
 
         if (sem_lock(semid, 3 + req.sector) != -1)
         {
@@ -410,6 +391,18 @@ int main(int argc, char **argv)
     }
 
     cleanup:
+
+    if (!sent_confirmation)
+    {
+        msg_t info;
+        info.mtype = MSG_SECTOR_EMPTY;
+        info.sector = my_sector;
+        info.pid = getpid();
+
+        msgsnd(msqid, &info, sizeof(info) - sizeof(long), IPC_NOWAIT);
+    }
+
     shmdt(d);
     return 0;
+
 }

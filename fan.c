@@ -122,7 +122,6 @@ int main(void)
     if (age < 15)
     {
         logp("[FAN %d] Dziecko (%d lat), opiekun %d\n", my_id, age, guardian);
-        fflush(stdout);
     }
 
     if (sem_unlock(semid, 2) != 0)
@@ -146,7 +145,6 @@ int main(void)
     if (vip)
     {
         logp("[FAN %d] VIP (vip=%d / all=%d)\n", my_id, d->vip_count, d->fan_counter);
-        fflush(stdout);
     }
 
     msg_t req, res;
@@ -156,7 +154,6 @@ int main(void)
         if (leave_flag)
         {
             logp("[FAN %d] Opuszczam stadion\n", my_id);
-            fflush(stdout);
 
             break;
         }
@@ -171,7 +168,6 @@ int main(void)
             {
                 logp("[FAN %d] Kibic druzyny %c podchodzi do kasy\n", my_id, team == 0 ? 'A' : 'B');
             }
-            fflush(stdout);
             first_time = 0;
         }
         
@@ -232,7 +228,6 @@ int main(void)
         }
 
         logp("[FAN %d] Chce kupic bilet na sektor %d\n", my_id, req.sector);
-        fflush(stdout);
 
         int send_retry = 0;
         int max_send_retry = 100000;
@@ -268,7 +263,6 @@ int main(void)
         if (send_retry >= max_send_retry)
         {
             logp("[FAN %d] Nie udalo sie wyslac requestu\n", my_id);
-            fflush(stdout);
             continue;
         }
 
@@ -310,7 +304,6 @@ int main(void)
         if (recv_retry >= max_recv_retry)
         {
             logp("[FAN %d] Timeout - brak odpowiedzi od kasy\n", my_id);
-            fflush(stdout);
             continue;
         }
 
@@ -330,15 +323,12 @@ int main(void)
         if (res.tickets && vip)
         {
             logp("[VIP %d] Kupil bilet na sektor VIP\n", my_id);
-            fflush(stdout);
             
             logp("[VIP %d] Wchodzi bez kontroli do sektora VIP\n", my_id);
-            fflush(stdout);
             break;
         }
 
         logp("[FAN %d] Kupil %d bilet(y)\n", my_id, res.tickets);
-        fflush(stdout);
 
         if (res.tickets && !vip)
         {
@@ -350,7 +340,6 @@ int main(void)
             {
                 logp("[FAN %d] Ma bilet na sektor %d, szuka bramki...\n", my_id, res.sector);
             }
-            fflush(stdout);
 
             msg_t gate_req;
             int gate = rand() % GATES_PER_SECTOR;
@@ -417,7 +406,6 @@ int main(void)
             if (gate_retry >= max_gate_retry)
             {
                 logp("[FAN %d] Timeout - brak odpowiedzi z bramki\n", my_id);
-                fflush(stdout);
                 leave_sector(my_sector, my_id);
                 break;
             }
@@ -431,7 +419,6 @@ int main(void)
             if (d->priority[my_id])
             {
                 logp("[FAN %d] Zdenerwowany - dostalem priorytet\n", my_id);
-                fflush(stdout);
             }
             
             if (d->evacuation)
@@ -441,13 +428,11 @@ int main(void)
             }
 
             logp("[FAN %d] Wchodzi na hale\n", my_id);
-            fflush(stdout);
 
             in_gate_queue = 0;
             
             //CZEKA NA HALI aż będzie ewakuacja
             logp("[FAN %d] Ogląda mecz na sektorze %d\n", my_id, my_sector);
-            fflush(stdout);
             
             int check_evac = 0;
             while (!evac_flag && !check_evac && !leave_flag)
