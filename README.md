@@ -128,4 +128,41 @@ W ramach projektu zaimplementowano następujące funkcjonalności systemu:
 - **Bezpieczne zamykanie systemu**  
   Zwolnienie zasobów IPC oraz poprawne zakończenie wszystkich procesów.
 
+# 4. Napotkane problemy i trudności
+
+Podczas realizacji projektu napotkano szereg problemów związanych z programowaniem współbieżnym oraz komunikacją międzyprocesową.
+
+- **Ryzyko występowania zakleszczeń (deadlocków)**  
+  Niewłaściwe użycie semaforów mogło prowadzić do sytuacji, w których procesy wzajemnie się blokowały. Problem ten został rozwiązany poprzez ujednolicenie kolejności blokowania zasobów.
+
+- **Obsługa sygnałów systemowych**  
+  Trudnością było zapewnienie poprawnej reakcji procesów na sygnały ewakuacji i zakończenia pracy bez utraty danych oraz pozostawienia zasobów w niepoprawnym stanie.
+
+- **Zarządzanie zasobami IPC**  
+  Konieczne było pilnowanie poprawnego tworzenia i usuwania pamięci współdzielonej, kolejek komunikatów oraz semaforów, aby uniknąć wycieków zasobów.
+
+- **Synchronizacja kolejek przy bramkach**  
+  Implementacja kolejek wejściowych wymagała dodatkowej kontroli, aby zapobiec utracie danych oraz niepoprawnej kolejności obsługi kibiców.
+
+Napotkane trudności pozwoliły na zdobycie praktycznego doświadczenia w programowaniu współbieżnym oraz lepsze zrozumienie mechanizmów systemów operacyjnych.
+
+# 5. Wyróżniające się elementy specjalne
+
+Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonalność oraz poziom zaawansowania.
+
+- **Dynamiczne zarządzanie kasjerami**  
+  Automatyczne otwieranie i zamykanie kas w zależności od liczby oczekujących kibiców.
+
+- **Obsługa klientów VIP**  
+  Priorytetowa obsługa wybranych kibiców podczas zakupu biletów.
+
+- **System priorytetów przy bramkach**  
+  Przyznawanie pierwszeństwa kibicom długo oczekującym w kolejce.
+
+- **Automatyczna procedura ewakuacji**  
+  Samoczynne uruchamianie ewakuacji po wykryciu zagrożenia lub przekroczeniu pojemności stadionu.
+
+- **Synchronizowane logowanie zdarzeń**  
+  Zabezpieczenie zapisu do pliku `raport.txt` przy użyciu semaforów.
+
 
