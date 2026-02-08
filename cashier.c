@@ -4,7 +4,6 @@
 #include <signal.h>
 #include <sched.h>
 
-
 volatile sig_atomic_t evac_flag = 0;
 volatile sig_atomic_t quit_flag = 0;
 
@@ -26,78 +25,108 @@ int main(void)
 
     struct sigaction sb;
     memset(&sb, 0, sizeof(sb));
-
     sb.sa_handler = quit_handler;
     sigemptyset(&sb.sa_mask);
     sb.sa_flags = 0;
-
     sigaction(SIGTERM, &sb, NULL);
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
-
     sa.sa_handler = evacuate;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-
     sigaction(SIG_EVACUATE, &sa, NULL);
-
 
     srand(getpid());
 
     int shmid = shmget(ftok(".", IPC_KEY), sizeof(shared_data_t), 0);
-    if (shmid < 0) fatal_error("cashier shmget");
+    if (shmid < 0) 
+    {
+        perror("cashier shmget");
+        return 1;
+    }
 
     int msqid = msgget(ftok(".", IPC_KEY + 1), 0);
-    if (msqid < 0) fatal_error("cashier msgget");
+    if (msqid < 0) 
+    {
+        perror("cashier msgget");
+        return 1;
+    }
 
-    int semid = semget(ftok(".", IPC_KEY + 2), 3, 0);
-    if (semid < 0) fatal_error("cashier semget");
-
+    int semid = semget(ftok(".", IPC_KEY + 2), 3 + MAX_SECTORS, 0);
+    if (semid < 0) 
+    {
+        perror("cashier semget");
+        return 1;
+    }
 
     shared_data_t *d = shmat(shmid, NULL, 0);
-    if (d == (void *)-1) fatal_error("cashier shmat");
+    if (d == (void *)-1) 
+    {
+        perror("cashier shmat");
+        return 1;
+    }
+
+    printf("[CASHIER] Uruchomiony\n");
+    fflush(stdout);
 
     msg_t req, res;
 
     while (!d->evacuation && !evac_flag && !quit_flag)
     {
+        // Priorytet dla VIP
         ssize_t r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT);
 
         if (r == -1)
         {
-            r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET, 0);
+            r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET, IPC_NOWAIT);
         }
 
         if (r == -1)
         {
-            if (errno == EINTR || errno == EIDRM || evac_flag || quit_flag) break;
-
-            if (errno == ENOMSG) continue;
-
-            fatal_error("cashier msgrcv");
+            if (errno == EINTR || errno == EIDRM) 
+            {
+                break;
+            }
+            if (errno == ENOMSG) 
+            {
+                sched_yield();
+                continue;
+            }
+            
+            perror("cashier msgrcv");
+            break;
         }
 
         if (d->evacuation) break;
         
         printf("[CASHIER] Fan %d (Team %c) chce sektor %d\n", req.pid, req.team == 0 ? 'A' : 'B', req.sector);
         fflush(stdout);
+
         // Sprawdzanie dziecka
         if (req.age < 15)
         {
             if (req.guardian == 0)
             {
-                printf("[CASHIER] Dziecko %d bez opiekuna – odmowa\n", req.pid);
+                printf("[CASHIER] Dziecko %d bez opiekuna - odmowa\n", req.pid);
+                fflush(stdout);
 
+                res.mtype = MSG_TICKET_OK + req.pid;
                 res.tickets = 0;
-
-                msgsnd(msqid, &res, sizeof(res)-sizeof(long), 0);
-
+                
+                if (msgsnd(msqid, &res, sizeof(res) - sizeof(long), IPC_NOWAIT) == -1)
+                {
+                    if (errno != EINTR && errno != EIDRM && errno != EAGAIN)
+                    {
+                        perror("cashier msgsnd");
+                    }
+                }
                 continue;
             }
 
             printf("[CASHIER] Dziecko %d z opiekunem %d\n", req.pid, req.guardian);
-        }   
+            fflush(stdout);
+        }
 
         if (req.vip)
         {
@@ -112,7 +141,11 @@ int main(void)
         res.team = req.team;
         res.sector = sector;
         
-        if (sem_lock(semid, 0) == -1) break;
+        // Używamy semafora SEKTOROWEGO
+        if (sem_lock(semid, 3 + sector) == -1) 
+        {
+            break;
+        }
 
         int free = d->sector_capacity[sector] - d->sector_taken[sector];
 
@@ -131,16 +164,12 @@ int main(void)
             res.tickets = 0;
         }
 
-        if (sem_unlock(semid, 0) == -1)
-        {
-            evac_flag = 1;
-            break;
-        }
+        sem_unlock(semid, 3 + sector);
 
-        
         if (res.tickets)
         {
-            printf("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d\n", res.tickets, req.pid, sector);
+            printf("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d (zajete: %d/%d)\n", 
+                   res.tickets, req.pid, sector, d->sector_taken[sector], d->sector_capacity[sector]);
         }
         else
         {
@@ -148,13 +177,39 @@ int main(void)
         }
         fflush(stdout);
 
-        if (msgsnd(msqid, &res, sizeof(res) - sizeof(long), 0) == -1)
+        if (msgsnd(msqid, &res, sizeof(res) - sizeof(long), IPC_NOWAIT) == -1)
         {
-            if (errno == EINTR || errno == EIDRM) break;
+            if (errno == EINTR || errno == EIDRM) 
+            {
+                break;
+            }
+            if (errno != EAGAIN)
+            {
+                perror("cashier msgsnd");
+            }
         }
 
         sched_yield();
+    }
 
+    // ✅ FIX: Kasjer informuje o zamknięciu
+    if (quit_flag)
+    {
+        if (sem_lock(semid, 2) == 0)
+        {
+            if (d->active_cashiers > 0)
+            {
+                d->active_cashiers--;
+            }
+            d->cashiers_closing = 0;
+            printf("[CASHIER] Zamykam sie (aktywnych: %d)\n", d->active_cashiers);
+            fflush(stdout);
+            sem_unlock(semid, 2);
+        }
+    }
+    else if (evac_flag || d->evacuation)
+    {
+        dprintf(STDOUT_FILENO, "[CASHIER] Koncze prace (ewakuacja)\n");
 
     }
 

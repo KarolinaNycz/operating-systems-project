@@ -21,10 +21,11 @@ int create_shared_memory(void)
 
     d->active_cashiers = MIN_CASHIERS;
     d->ticket_queue = 0;
-    d->total_capacity = 600; //ile miejsc na stadionie
+    d->total_capacity = 600;
     d->vip_count = 0;
     d->vip_queue = 0;
     d->last_adult_id = 0;
+    d->cashiers_closing = 0;
 
     for (int s = 0; s < MAX_SECTORS; s++)
     {
@@ -34,7 +35,8 @@ int create_shared_memory(void)
         }
     }
 
-    for (int i = 0; i < MAX_SECTORS; i++) d->sector_capacity[i] = d->total_capacity / MAX_SECTORS;
+    for (int i = 0; i < MAX_SECTORS; i++) 
+        d->sector_capacity[i] = d->total_capacity / MAX_SECTORS;
 
     for (int i = 0; i < MAX_SECTORS; i++)
     {
@@ -63,7 +65,7 @@ int create_semaphore(void)
     key_t key = ftok(".", IPC_KEY + 2);
     if (key == -1) fatal_error("ftok sem");
 
-    int semid = semget(key, 3 + MAX_SECTORS, IPC_CREAT | 0666); // 3 global + MAX_SECTORS sektorowych
+    int semid = semget(key, 3 + MAX_SECTORS, IPC_CREAT | 0666);
 
     if (semid == -1) fatal_error("semget");
 

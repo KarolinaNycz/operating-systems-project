@@ -14,15 +14,15 @@
 #include <sys/sem.h>
 #include <signal.h>
 
-#define SIG_EVACUATE SIGUSR2
+#define SIG_EVACUATE (SIGRTMIN)
 
 #define IPC_KEY 11
-#define MAX_SECTORS 9   // 0-7 normalne, 8 = VIP
+#define MAX_SECTORS 9
 #define VIP_SECTOR 8
 
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
-#define MAX_FANS 500 //ile fanow
+#define MAX_FANS 500
 #define GATES_PER_SECTOR 2
 #define MAX_GATE_CAPACITY 3
 
@@ -36,7 +36,7 @@
 #define MSG_GATE_LEAVE    12
 #define MSG_GATE_REJECT 13
 #define MSG_GATE_BASE 3000
-#define FLARE_PROB 5  // 0.5% ze ma race (5 / 1000)
+#define FLARE_PROB 5
 
 #define MAX_QUEUE 1000
 
@@ -58,15 +58,18 @@ typedef struct
     int gate_team[MAX_SECTORS][GATES_PER_SECTOR];
     int sector_taken[MAX_SECTORS];
     int entry_blocked[MAX_SECTORS];
-    int evacuation;
+    volatile int evacuation;
     int gate_wait[MAX_FANS];
     int priority[MAX_FANS];
     int active_cashiers;
     int ticket_queue;
     int vip_queue;
-
     int last_adult_id;
+    int sector_blocked[MAX_SECTORS];
+    int sector_empty[MAX_SECTORS];
+    int sector_reported[MAX_SECTORS];
     gate_queue_t gate_queue[MAX_SECTORS];
+    int cashiers_closing;
 } shared_data_t;
 
 typedef struct
@@ -78,9 +81,9 @@ typedef struct
     int team;
     int sector;
     int tickets;
-    int age;        // wiek fana
-    int guardian;   // pid opiekuna (0 = brak)
-    int want_tickets;   // ile chce kupić (1 lub 2)
+    int age;
+    int guardian;
+    int want_tickets;
 } msg_t;
 
 union semun 
@@ -105,11 +108,14 @@ static inline int sem_lock(int semid, int num)
 
     while (1)
     {
-        if (semop(semid, &sb, 1) == 0)
-            return 0;
+        if (semop(semid, &sb, 1) == 0) return 0;
 
         if (errno == EINTR)
-            return -1;
+        {
+            return -2;
+        }
+
+        if (errno == EIDRM) return -1;
 
         perror("semop lock");
         exit(1);
@@ -122,11 +128,11 @@ static inline int sem_unlock(int semid, int num)
 
     while (1)
     {
-        if (semop(semid, &sb, 1) == 0)
-            return 0;
+        if (semop(semid, &sb, 1) == 0) return 0;
 
-        if (errno == EINTR)
-            return -1;
+        if (errno == EINTR) continue;  // ✅ Kontynuuj próby
+
+        if (errno == EIDRM) return -1;  // ✅ Semafor usunięty - wyjdź
 
         perror("semop unlock");
         exit(1);
@@ -159,7 +165,5 @@ static inline int queue_front(gate_queue_t *q)
 
     return q->buf[q->head];
 }
-
-
 
 #endif
