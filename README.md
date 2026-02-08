@@ -159,10 +159,34 @@ Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonal
 - **System priorytetów przy bramkach**  
   Przyznawanie pierwszeństwa kibicom długo oczekującym w kolejce.
 
+- **Posiadanie materiałów pirotechnicznych (race)**
+  umożliwia wykrycie niebezpiecznych kibiców i ich usunięcie z systemu.
+
 - **Automatyczna procedura ewakuacji**  
   Samoczynne uruchamianie ewakuacji po wykryciu zagrożenia lub przekroczeniu pojemności stadionu.
 
 - **Synchronizowane logowanie zdarzeń**  
   Zabezpieczenie zapisu do pliku `raport.txt` przy użyciu semaforów.
+
+  # 6. Opis semaforów
+
+W projekcie zastosowano zestaw semaforów System V w celu synchronizacji dostępu do zasobów współdzielonych oraz zapewnienia poprawnej współpracy pomiędzy procesami.
+
+Wykorzystywane semafory pełnią następujące funkcje:
+
+- **Semafor 0 – synchronizacja logowania**  
+  Odpowiada za kontrolę dostępu do funkcji zapisujących dane do pliku `raport.txt`, zapobiegając nakładaniu się komunikatów z różnych procesów.
+
+- **Semafor 1 – synchronizacja kolejek bramek**  
+  Chroni struktury kolejek wejściowych do sektorów przed jednoczesną modyfikacją przez wiele procesów.
+
+- **Semafor 2 – synchronizacja danych globalnych**  
+  Zabezpiecza dostęp do głównych zmiennych w pamięci współdzielonej, takich jak liczba aktywnych kasjerów, stan ewakuacji czy kolejki do kas.
+
+- **Semafory 3+ – synchronizacja sektorów**  
+  Każdy sektor posiada własny semafor, który kontroluje dostęp do danych związanych z zajętością miejsc, bramkami oraz blokadą sektorów.
+
+Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwala na ograniczenie liczby blokad, zwiększenie równoległości działania oraz poprawę wydajności symulacji.
+
 
 
