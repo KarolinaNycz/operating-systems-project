@@ -1,4 +1,7 @@
 #include "common.h"
+#include <stdarg.h>
+
+#define LOG_FILE "raport.txt"
 
 void fatal_error(const char *msg)
 {
@@ -97,4 +100,36 @@ void remove_shared_memory(int shmid)
 void remove_semaphore(int semid)
 {
     semctl(semid, 0, IPC_RMID);
+}
+
+void logp(const char *format, ...)
+{
+    int semid = semget(ftok(".", IPC_KEY + 2), 0, 0);
+
+    if (semid != -1)
+        sem_lock(semid, 0);
+
+    va_list args;
+
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+
+    fflush(stdout);
+
+    FILE *fp = fopen(LOG_FILE, "a");
+
+    if (fp)
+    {
+        va_start(args, format);
+        vfprintf(fp, format, args);
+        va_end(args);
+
+        fflush(fp);
+        fclose(fp);
+    }
+
+
+    if (semid != -1)
+        sem_unlock(semid, 0);
 }

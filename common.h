@@ -13,6 +13,7 @@
 #include <sys/msg.h>
 #include <sys/sem.h>
 #include <signal.h>
+#include <stdarg.h>
 
 #define SIG_EVACUATE (SIGRTMIN)
 
@@ -101,6 +102,7 @@ int create_semaphore(void);
 
 void remove_shared_memory(int shmid);
 void remove_semaphore(int semid);
+void logp(const char *format, ...);
 
 static inline int sem_lock(int semid, int num)
 {

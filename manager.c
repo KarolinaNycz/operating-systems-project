@@ -31,7 +31,7 @@ void sigchld_handler(int sig)
 
 void cleanup(void)
 {
-    printf("\n[MANAGER] Zamykanie systemu...\n");
+    logp("\n[MANAGER] Zamykanie systemu...\n");
     fflush(stdout);
 
     pid_t pid;
@@ -43,7 +43,7 @@ void cleanup(void)
     
     if (count > 0)
     {
-        printf("[MANAGER] Zebrano %d procesow zombie\n", count);
+        logp("[MANAGER] Zebrano %d procesow zombie\n", count);
         fflush(stdout);
     }
 
@@ -53,7 +53,7 @@ void cleanup(void)
     if (g_shmid != -1) shmctl(g_shmid, IPC_RMID, NULL);
     if (g_semid != -1) semctl(g_semid, 0, IPC_RMID);
 
-    printf("[MANAGER] Cleanup zakonczony.\n");
+    logp("[MANAGER] Cleanup zakonczony.\n");
 }
 
 void cleanup_handler(int sig)
@@ -81,11 +81,11 @@ void block_handler(int sig)
     if (d)
     {
         sem_lock(g_semid, 2);
-        for (int i = 0; i < MAX_SECTORS; i++) 
+        for (int i = 0; i < MAX_SECTORS; i++) //SYGNAL 1
             d->sector_blocked[i] = 1;
         sem_unlock(g_semid, 2);
 
-        printf("[MANAGER] Blokada sektorow\n");
+        logp("[MANAGER] Blokada sektorow\n");
         fflush(stdout);
     }
 }
@@ -97,11 +97,11 @@ void unblock_handler(int sig)
     if (d)
     {
         sem_lock(g_semid, 2);
-        for (int i = 0; i < MAX_SECTORS; i++) 
+        for (int i = 0; i < MAX_SECTORS; i++) //SYGNAL 2
             d->sector_blocked[i] = 0;
         sem_unlock(g_semid, 2);
 
-        printf("[MANAGER] Odblokowanie sektorow\n");
+        logp("[MANAGER] Odblokowanie sektorow\n");
         fflush(stdout);
     }
 }
@@ -115,6 +115,9 @@ void alarm_handler(int sig)
 
 int main(void)
 {
+    FILE *fp = fopen("raport.txt", "w");
+    if (fp) fclose(fp);
+
     setvbuf(stdout, NULL, _IONBF, 0);
 
     setpgid(0, 0);
@@ -126,11 +129,11 @@ int main(void)
     sa_chld.sa_flags = SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa_chld, NULL);
 
-    signal(SIGUSR1, block_handler);
-    signal(SIGUSR2, unblock_handler);
-    signal(SIGINT, cleanup_handler);
-    signal(SIGTERM, cleanup_handler);
-    signal(SIGQUIT, cleanup_handler);
+    signal(SIGUSR1, block_handler);  //SYGNAL 1
+    signal(SIGUSR2, unblock_handler);  //SYGNAL 2
+    signal(SIGINT, cleanup_handler);  //CTRL + C
+    signal(SIGTERM, cleanup_handler); //SYGNAL 3
+    signal(SIGQUIT, cleanup_handler); //CTRL + \//
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -214,7 +217,7 @@ int main(void)
 
         if (total >= d->total_capacity)
         {
-            printf("[MANAGER] Stadion pelny - ewakuacja\n"); 
+            logp("[MANAGER] Stadion pelny - ewakuacja\n"); 
             evac_flag = 1;
             sem_unlock(g_semid, 2);
             break;
@@ -234,7 +237,7 @@ int main(void)
 
             d->active_cashiers--;
 
-            printf("[MANAGER] Zamykam kase (%d aktywnych)\n", d->active_cashiers);
+            logp("[MANAGER] Zamykam kase (%d aktywnych)\n", d->active_cashiers);
         }
 
         // otwieranie kas
@@ -251,7 +254,7 @@ int main(void)
             cashier_pids[N] = p;
             d->active_cashiers++;
 
-            printf("[MANAGER] Otwieram kase (%d aktywnych)\n", d->active_cashiers);
+            logp("[MANAGER] Otwieram kase (%d aktywnych)\n", d->active_cashiers);
         }
 
         sem_unlock(g_semid, 2);
@@ -264,8 +267,15 @@ int main(void)
         sem_unlock(g_semid, 2);
     }
 
-    printf("[MANAGER] Ewakuacja - wysylam sygnal do grupy procesow\n");
+    logp("[MANAGER] Ewakuacja - wysylam sygnal do grupy procesow\n");
     fflush(stdout);
+
+    // WYCZYSC KOLEJKE BILETOW
+    msg_t dump;
+
+    while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET, IPC_NOWAIT) >= 0);
+
+    while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT) >= 0);
 
     // Wyślij ewakuację do techów
     for (int s = 0; s < MAX_SECTORS; s++)
@@ -279,10 +289,10 @@ int main(void)
         }
     }
 
-    printf("[MANAGER] Forsowne zamykanie fanow...\n");
+    logp("[MANAGER] Forsowne zamykanie fanow...\n");
     fflush(stdout);
 
-    printf("[MANAGER] Czekam na potwierdzenia od %d sektorow...\n", MAX_SECTORS);
+    logp("[MANAGER] Czekam na potwierdzenia od %d sektorow...\n", MAX_SECTORS);
     fflush(stdout);
 
     int empty = 0;
@@ -299,8 +309,7 @@ int main(void)
             {
                 d->sector_reported[msg.sector] = 1;
                 empty++;
-                printf("[MANAGER] Sektor %d oprozniony (%d/%d)\n", 
-                       msg.sector, empty, MAX_SECTORS);
+                logp("[MANAGER] Sektor %d oprozniony (%d/%d)\n", msg.sector, empty, MAX_SECTORS);
                 fflush(stdout);
             }
             iterations = 0;
@@ -319,7 +328,7 @@ int main(void)
             }
             if (errno == EIDRM)
             {
-                printf("[MANAGER] Kolejka wiadomosci usunieta\n");
+                logp("[MANAGER] Kolejka wiadomosci usunieta\n");
                 fflush(stdout);
                 break;
             }
@@ -328,11 +337,11 @@ int main(void)
 
     if (iterations >= max_iterations)
     {
-        printf("[MANAGER] TIMEOUT - forsowne zamkniecie (otrzymano %d/%d)\n", empty, MAX_SECTORS);
+        logp("[MANAGER] TIMEOUT - forsowne zamkniecie (otrzymano %d/%d)\n", empty, MAX_SECTORS);
         fflush(stdout);
     }
 
-    printf("[MANAGER] Otrzymano wszystkie potwierdzenia\n");
+    logp("[MANAGER] Otrzymano wszystkie potwierdzenia\n");
     fflush(stdout);
 
     for (int s = 0; s < MAX_SECTORS; s++)
@@ -361,7 +370,7 @@ int main(void)
         d->active_cashiers--;
     }
 
-    kill(-getpgrp(), SIGTERM);
+    kill(-getpgrp(), SIGTERM); //SYGNAL 3
     while (wait(NULL) > 0);
 
     cleanup();

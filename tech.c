@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 
         if (evac_flag || check_evac)
         {
-            printf("[TECH %d/%d] TRYB EWAKUACJI- czekam na oproznienie sektora\n",  my_sector, my_gate);
+            logp("[TECH %d/%d] TRYB EWAKUACJI- czekam na oproznienie sektora\n",  my_sector, my_gate);
             fflush(stdout);
 
             int left;
@@ -94,8 +94,7 @@ int main(int argc, char **argv)
 
                     if (wait_iterations > max_wait)
                     {
-                        printf("[TECH %d/%d] TIMEOUT - forsowne oproznienie\n", 
-                               my_sector, my_gate);
+                        logp("[TECH %d/%d] TIMEOUT - forsowne oproznienie\n", my_sector, my_gate);
                         fflush(stdout);
                         
                         if (sem_lock(semid, 3 + my_sector) == 0) 
@@ -109,7 +108,7 @@ int main(int argc, char **argv)
 
             } while (left > 0); 
 
-            printf("[TECH %d/%d] Sektor oprozniony\n", my_sector, my_gate);
+            logp("[TECH %d/%d] Sektor oprozniony\n", my_sector, my_gate);
             fflush(stdout);
 
             if (my_gate == 0)
@@ -119,7 +118,7 @@ int main(int argc, char **argv)
                 info.sector = my_sector;
                 info.pid = getpid();
 
-                printf("[TECH %d/%d] Wysylam potwierdzenie do managera...\n", my_sector, my_gate);
+                logp("[TECH %d/%d] Wysylam potwierdzenie do managera...\n", my_sector, my_gate);
                 fflush(stdout);
 
                 int retry = 0;
@@ -130,7 +129,7 @@ int main(int argc, char **argv)
                 {
                     if (msgsnd(msqid, &info, sizeof(info) - sizeof(long), IPC_NOWAIT) == 0)
                     {
-                        printf("[TECH %d/%d] Potwierdzenie wyslane!\n", my_sector, my_gate);
+                        logp("[TECH %d/%d] Potwierdzenie wyslane!\n", my_sector, my_gate);
                         fflush(stdout);
                         sent = 1;
                         break;
@@ -138,7 +137,7 @@ int main(int argc, char **argv)
                     
                     if (errno == EIDRM)
                     {
-                        printf("[TECH %d/%d] Kolejka usunieta\n", my_sector, my_gate);
+                        logp("[TECH %d/%d] Kolejka usunieta\n", my_sector, my_gate);
                         fflush(stdout);
                         break;
                     }
@@ -156,13 +155,13 @@ int main(int argc, char **argv)
                 
                 if (!sent && errno != EIDRM)
                 {
-                    printf("[TECH %d/%d] UWAGA: Nie udalo sie wyslac potwierdzenia\n", my_sector, my_gate);
+                    logp("[TECH %d/%d] UWAGA: Nie udalo sie wyslac potwierdzenia\n", my_sector, my_gate);
                     fflush(stdout);
                 }
                 }
                 else
                 {
-                    printf("[TECH %d/%d] Sektor oprozniony (bramka pomocnicza)\n", my_sector, my_gate);
+                    logp("[TECH %d/%d] Sektor oprozniony (bramka pomocnicza)\n", my_sector, my_gate);
                     fflush(stdout);
                 }
 
@@ -222,13 +221,13 @@ int main(int argc, char **argv)
 
             if (blocked && last_block_state == 0)
             {
-                printf("[TECH %d/%d] Sektor ZABLOKOWANY\n", my_sector, my_gate);
+                logp("[TECH %d/%d] Sektor ZABLOKOWANY\n", my_sector, my_gate);
                 fflush(stdout);
             }
 
             if (!blocked && last_block_state == 1)
             {
-                printf("[TECH %d/%d] Sektor ODBLOKOWANY\n", my_sector, my_gate);
+                logp("[TECH %d/%d] Sektor ODBLOKOWANY\n", my_sector, my_gate);
                 fflush(stdout);
             }
 
@@ -268,7 +267,7 @@ int main(int argc, char **argv)
                 if (d->gate_wait[req.pid] >= 5)
                 {
                     d->priority[req.pid] = 1;
-                    printf("[TECH %d/%d] Fan %d dostaje priorytet\n", my_sector, my_gate, req.pid);
+                    logp("[TECH %d/%d] Fan %d dostaje priorytet\n", my_sector, my_gate, req.pid);
                     fflush(stdout);
                 }
             }
@@ -314,7 +313,7 @@ int main(int argc, char **argv)
             continue;
         }
 
-        printf("[TECH %d/%d] Obsluguje fana %d\n", my_sector, my_gate, req.pid);
+        logp("[TECH %d/%d] Obsluguje fana %d\n", my_sector, my_gate, req.pid);
         fflush(stdout);
 
         semr = sem_lock(semid, 3 + req.sector);
@@ -337,18 +336,18 @@ int main(int argc, char **argv)
 
         if (req.tickets == 2)
         {
-            printf("[Bramka %d/%d] Sprawdzam fana %d + towarzysz (sektor %d, team %c)\n",  my_sector, gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+            logp("[Bramka %d/%d] Sprawdzam fana %d + towarzysz (sektor %d, team %c)\n",  my_sector, gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
         }
         else
         {
-            printf("[Bramka %d/%d] Sprawdzam fana %d (sektor %d, team %c)\n",  my_sector, gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+            logp("[Bramka %d/%d] Sprawdzam fana %d (sektor %d, team %c)\n",  my_sector, gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
         }
         fflush(stdout);
 
         // Sprawdzenie rac
         if (req.has_flare)
         {
-            printf("[Bramka %d/%d] ALARM! Fan %d ma race - WYPROWADZENIE\n", my_sector, gate, req.pid);
+            logp("[Bramka %d/%d] ALARM! Fan %d ma race - WYPROWADZENIE\n", my_sector, gate, req.pid);
             fflush(stdout);
 
             kill(req.pid, SIGKILL);
@@ -374,11 +373,11 @@ int main(int argc, char **argv)
 
         if (req.tickets == 2)
         {
-            printf("[Bramka %d/%d] Fan %d + osoba towarzyszaca bezpieczni\n", my_sector, gate, req.pid);
+            logp("[Bramka %d/%d] Fan %d + osoba towarzyszaca bezpieczni\n", my_sector, gate, req.pid);
         }
         else
         {
-            printf("[Bramka %d/%d] Fan %d bezpieczny\n", my_sector, gate, req.pid);
+            logp("[Bramka %d/%d] Fan %d bezpieczny\n", my_sector, gate, req.pid);
         }
         fflush(stdout);
 

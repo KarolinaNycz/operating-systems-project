@@ -67,13 +67,19 @@ int main(void)
         return 1;
     }
 
-    printf("[CASHIER] Uruchomiony\n");
+    logp("[CASHIER] Uruchomiony\n");
     fflush(stdout);
 
     msg_t req, res;
 
-    while (!d->evacuation && !evac_flag && !quit_flag)
+    while (!quit_flag)
     {
+        if (d->evacuation || evac_flag)
+        {
+            logp("[CASHIER] STOP sprzedazy – ewakuacja\n");
+            break;
+        }
+
         // Priorytet dla VIP
         ssize_t r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT);
 
@@ -98,9 +104,13 @@ int main(void)
             break;
         }
 
-        if (d->evacuation) break;
-        
-        printf("[CASHIER] Fan %d (Team %c) chce sektor %d\n", req.pid, req.team == 0 ? 'A' : 'B', req.sector);
+        if (d->evacuation || evac_flag)
+        {
+            logp("[CASHIER] Przerywam sprzedaz – ewakuacja\n");
+            break;
+        }
+
+        logp("[CASHIER] Fan %d (Team %c) chce sektor %d\n", req.pid, req.team == 0 ? 'A' : 'B', req.sector);
         fflush(stdout);
 
         // Sprawdzanie dziecka
@@ -108,7 +118,7 @@ int main(void)
         {
             if (req.guardian == 0)
             {
-                printf("[CASHIER] Dziecko %d bez opiekuna - odmowa\n", req.pid);
+                logp("[CASHIER] Dziecko %d bez opiekuna - odmowa\n", req.pid);
                 fflush(stdout);
 
                 res.mtype = MSG_TICKET_OK + req.pid;
@@ -124,13 +134,13 @@ int main(void)
                 continue;
             }
 
-            printf("[CASHIER] Dziecko %d z opiekunem %d\n", req.pid, req.guardian);
+            logp("[CASHIER] Dziecko %d z opiekunem %d\n", req.pid, req.guardian);
             fflush(stdout);
         }
 
         if (req.vip)
         {
-            printf("[CASHIER] Obsluguje VIP-a %d...\n", req.pid);
+            logp("[CASHIER] Obsluguje VIP-a %d...\n", req.pid);
             fflush(stdout);
         }
 
@@ -147,33 +157,80 @@ int main(void)
             break;
         }
 
+        if (d->evacuation || evac_flag)
+        {
+            sem_unlock(semid, 3 + sector);
+            break;
+        }
+
         int free = d->sector_capacity[sector] - d->sector_taken[sector];
 
+        /* jest miejsce – normalnie */
         if (free >= req.want_tickets)
         {
             d->sector_taken[sector] += req.want_tickets;
             res.tickets = req.want_tickets;
         }
-        else if (free > 0)
+
+        if (d->evacuation || evac_flag)
         {
-            d->sector_taken[sector] += free;
-            res.tickets = free;
+            res.mtype = MSG_TICKET_OK + req.pid;
+            res.pid = req.pid;
+            res.tickets = 0;
+
+            msgsnd(msqid, &res, sizeof(res)-sizeof(long), IPC_NOWAIT);
+
+            break;
         }
+
+        /* nie ma – szukamy innego sektora */
         else
         {
-            res.tickets = 0;
+            int found = -1;
+
+            for (int s = 0; s < MAX_SECTORS; s++)
+            {
+                if (s == sector) continue;
+
+                if (req.team == 0 && s >= 4) continue;
+                if (req.team == 1 && s < 4) continue;
+
+                int f = d->sector_capacity[s] - d->sector_taken[s];
+
+                if (f >= req.want_tickets)
+                {
+                    found = s;
+                    break;
+                }
+            }
+
+            if (found != -1)
+            {
+                int old = req.sector;
+
+                sector = found;
+                d->sector_taken[sector] += req.want_tickets;
+
+                res.sector = sector;
+                res.tickets = req.want_tickets;
+
+                logp("[CASHIER] Brak miejsca w sektorze %d dla fana %d – proponuje sektor %d\n", old, req.pid, sector);
+            }
+            else
+            {
+                res.tickets = 0;
+            }
         }
 
         sem_unlock(semid, 3 + sector);
 
         if (res.tickets)
         {
-            printf("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d (zajete: %d/%d)\n", 
-                   res.tickets, req.pid, sector, d->sector_taken[sector], d->sector_capacity[sector]);
+            logp("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d (zajete: %d/%d)\n", res.tickets, req.pid, sector, d->sector_taken[sector], d->sector_capacity[sector]);
         }
         else
         {
-            printf("[CASHIER] Brak miejsc w sektorze %d dla fana %d\n", sector, req.pid);
+            logp("[CASHIER] Brak miejsc w sektorze %d dla fana %d\n", sector, req.pid);
         }
         fflush(stdout);
 
@@ -202,7 +259,7 @@ int main(void)
                 d->active_cashiers--;
             }
             d->cashiers_closing = 0;
-            printf("[CASHIER] Zamykam sie (aktywnych: %d)\n", d->active_cashiers);
+            logp("[CASHIER] Zamykam sie (aktywnych: %d)\n", d->active_cashiers);
             fflush(stdout);
             sem_unlock(semid, 2);
         }

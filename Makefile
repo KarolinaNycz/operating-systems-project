@@ -21,4 +21,4 @@ fan: fan.c $(COMMON) $(HEADERS)
 	$(CC) $(CFLAGS) fan.c $(COMMON) -o fan
 
 clean:
-	rm -f manager cashier tech fan
+	rm -f manager cashier tech fan *.o raport.txt
