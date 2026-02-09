@@ -16,6 +16,7 @@ static int g_msqid = -1;
 static int g_semid = -1;
 static pid_t cashier_pids[MAX_CASHIERS];
 static pid_t tech_pids[MAX_SECTORS][GATES_PER_SECTOR];
+static pid_t fan_pids[MAX_FANS];
 
 static shared_data_t *d = NULL;
 
@@ -150,6 +151,7 @@ int main(void)
     memset(d->sector_reported, 0, sizeof(d->sector_reported));
     memset(d->sector_blocked, 0, sizeof(d->sector_blocked));
     memset(cashier_pids, 0, sizeof(cashier_pids));
+    memset(fan_pids, 0, sizeof(fan_pids));
     d->cashiers_closing = 0;
 
     // Uruchom kasjerów
@@ -167,11 +169,15 @@ int main(void)
     // Uruchom fanów
     for (int i = 0; i < MAX_FANS; i++)
     {
-        if (!fork())
+        pid_t p = fork();
+    
+        if (p == 0)
         {
             execl("./fan", "fan", NULL);
             fatal_error("execl fan");
         }
+    
+        fan_pids[i] = p;
     }
 
     // Uruchom techów
@@ -195,7 +201,7 @@ int main(void)
     }
 
     // automatyczna ewakuacja po 8 sekundach
-    alarm(8);
+    alarm(20);
 
     msg_t msg;
 
@@ -284,7 +290,26 @@ int main(void)
         }
     }
 
-    logp("[MANAGER] Forsowne zamykanie fanow...\n");
+    //Wyślij ewakuację do fanów
+    logp("[MANAGER] Wysylam SIG_EVACUATE do fanow...\n");
+    for (int i = 0; i < MAX_FANS; i++)
+    {
+        if (fan_pids[i] > 0)
+        {
+            kill(fan_pids[i], SIG_EVACUATE);
+        }
+    }
+
+
+    //Wyślij ewakuację do kasjerów
+    logp("[MANAGER] Wysylam SIG_EVACUATE do kasjerow...\n");
+    for (int i = 0; i < MAX_CASHIERS; i++)
+    {
+        if (cashier_pids[i] > 0)
+        {
+            kill(cashier_pids[i], SIG_EVACUATE);
+        }
+    }
 
     logp("[MANAGER] Czekam na potwierdzenia od %d sektorow...\n", MAX_SECTORS);
 
@@ -336,6 +361,7 @@ int main(void)
     if (empty == MAX_SECTORS)
     logp("[MANAGER] Otrzymano wszystkie potwierdzenia\n");
 
+    //Wyślij SIGTERM do wszystkich techow
     for (int s = 0; s < MAX_SECTORS; s++)
     {
         for (int g = 0; g < GATES_PER_SECTOR; g++)
@@ -344,25 +370,17 @@ int main(void)
         }
     }
 
-    int idx = -1;
-
-    for (int i = MAX_CASHIERS - 1; i >= 0; i--)
+    //Wyślij SIGTERM do wszystkich kasjerow
+    logp("[MANAGER] Wysylam SIGTERM do kasjerow...\n");
+    for (int i = 0; i < MAX_CASHIERS; i++)
     {
         if (cashier_pids[i] > 0)
         {
-            idx = i;
-            break;
+            kill(cashier_pids[i], SIGTERM);
         }
     }
 
-    if (idx != -1)
-    {
-        kill(cashier_pids[idx], SIGTERM);
-        cashier_pids[idx] = 0;
-        d->active_cashiers--;
-    }
-
-    kill(-getpgrp(), SIGTERM); //SYGNAL 3
+    kill(-getpgrp(), SIGTERM);
     while (wait(NULL) > 0);
 
     cleanup();

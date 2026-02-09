@@ -24,7 +24,7 @@ int create_shared_memory(void)
 
     d->active_cashiers = MIN_CASHIERS;
     d->ticket_queue = 0;
-    d->total_capacity = 2000;
+    d->total_capacity = 900;
     d->vip_count = 0;
     d->vip_queue = 0;
     d->last_adult_id = 0;

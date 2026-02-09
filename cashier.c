@@ -145,87 +145,96 @@ int main(void)
         res.pid = req.pid;
         res.team = req.team;
         res.sector = sector;
+        res.tickets = 0;
         
-        // Używamy semafora SEKTOROWEGO
-        if (sem_lock(semid, 3 + sector) == -1) 
+        if (sem_lock(semid, 3 + sector) == 0)
         {
-            break;
-        }
-
-        if (d->evacuation || evac_flag)
-        {
-            sem_unlock(semid, 3 + sector);
-            break;
-        }
-
-        int free = d->sector_capacity[sector] - d->sector_taken[sector];
-
-        /* jest miejsce – normalnie */
-        if (free >= req.want_tickets)
-        {
-            d->sector_taken[sector] += req.want_tickets;
-            res.tickets = req.want_tickets;
-        }
-
-        if (d->evacuation || evac_flag)
-        {
-            res.mtype = MSG_TICKET_OK + req.pid;
-            res.pid = req.pid;
-            res.tickets = 0;
-
-            msgsnd(msqid, &res, sizeof(res)-sizeof(long), IPC_NOWAIT);
-
-            break;
-        }
-
-        /* nie ma – szukamy innego sektora */
-        else
-        {
-            int found = -1;
-
-            for (int s = 0; s < MAX_SECTORS; s++)
+            if (d->evacuation || evac_flag)
             {
-                if (s == sector) continue;
-
-                if (req.team == 0 && s >= 4) continue;
-                if (req.team == 1 && s < 4) continue;
-
-                int f = d->sector_capacity[s] - d->sector_taken[s];
-
-                if (f >= req.want_tickets)
-                {
-                    found = s;
-                    break;
-                }
+                sem_unlock(semid, 3 + sector);
+                break;
             }
 
-            if (found != -1)
+            int free = d->sector_capacity[sector] - d->sector_taken[sector];
+
+            if (free >= req.want_tickets)
             {
-                int old = req.sector;
-
-                sector = found;
+                //Jest miejsce - sprzedaj
                 d->sector_taken[sector] += req.want_tickets;
-
-                res.sector = sector;
                 res.tickets = req.want_tickets;
-
-                logp("[CASHIER] Brak miejsca w sektorze %d dla fana %d – proponuje sektor %d\n", old, req.pid, sector);
+                res.sector = sector;
+                
+                int current_taken = d->sector_taken[sector];
+                int current_capacity = d->sector_capacity[sector];
+                
+                sem_unlock(semid, 3 + sector);
+                
+                logp("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d (zajete: %d/%d)\n", res.tickets, req.pid, sector, current_taken, current_capacity);
             }
             else
             {
-                res.tickets = 0;
+                //Brak miejsca - szukaj alternatywnego
+                sem_unlock(semid, 3 + sector);
+                
+                int found = 0;
+                
+                for (int s = 0; s < MAX_SECTORS; s++)
+                {
+                    if (s == sector) continue;
+                    if (req.team == 0 && s >= 4) continue;
+                    if (req.team == 1 && s < 4) continue;
+                    
+                    //Zablokuj semafor nowego sektora
+                    if (sem_lock(semid, 3 + s) != 0) continue;
+                    
+                    if (d->evacuation || evac_flag)
+                    {
+                        sem_unlock(semid, 3 + s);
+                        break;
+                    }
+                    
+                    int f = d->sector_capacity[s] - d->sector_taken[s];
+                    
+                    if (f >= req.want_tickets)
+                    {
+                        //Znaleziono - sprzedaj
+                        d->sector_taken[s] += req.want_tickets;
+                        res.tickets = req.want_tickets;
+                        res.sector = s;
+                        
+                        int current_taken = d->sector_taken[s];
+                        int current_capacity = d->sector_capacity[s];
+                        
+                        sem_unlock(semid, 3 + s);
+                        
+                        logp("[CASHIER] Brak miejsca w sektorze %d dla fana %d – sprzedano bilet na sektor %d (zajete: %d/%d)\n", 
+                             sector, req.pid, s, current_taken, current_capacity);
+                        
+                        found = 1;
+                        break;
+                    }
+                    
+                    sem_unlock(semid, 3 + s);
+                }
+                
+                if (!found)
+                {
+                    res.tickets = 0;
+                    logp("[CASHIER] Brak miejsc dla fana %d (wszystkie sektory pelne)\n", req.pid);
+                }
             }
-        }
-
-        sem_unlock(semid, 3 + sector);
-
-        if (res.tickets)
-        {
-            logp("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d (zajete: %d/%d)\n", res.tickets, req.pid, sector, d->sector_taken[sector], d->sector_capacity[sector]);
         }
         else
         {
-            logp("[CASHIER] Brak miejsc w sektorze %d dla fana %d\n", sector, req.pid);
+            logp("[CASHIER] Nie udalo sie zablokowac semafora sektora %d\n", sector);
+            res.tickets = 0;
+        }
+
+        if (d->evacuation || evac_flag)
+        {
+            res.tickets = 0;
+            msgsnd(msqid, &res, sizeof(res)-sizeof(long), IPC_NOWAIT);
+            break;
         }
 
         if (msgsnd(msqid, &res, sizeof(res) - sizeof(long), IPC_NOWAIT) == -1)
@@ -240,10 +249,11 @@ int main(void)
             }
         }
 
-        sched_yield();
+        sched_yield();;
+
     }
 
-    // ✅ FIX: Kasjer informuje o zamknięciu
+    //Kasjer informuje o zamknięciu
     if (quit_flag)
     {
         if (sem_lock(semid, 2) == 0)

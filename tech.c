@@ -75,32 +75,38 @@ int main(int argc, char **argv)
             int left;
             int wait_iterations = 0;
             int max_wait = 10000000;
+            int yield_interval = 50;
+
+            
             do
             {
-                left = d->sector_taken[my_sector];   // bez semafora
-
-                static int last_left = -1;
-
-                if (left > 0)
+                if (sem_lock(semid, 3 + my_sector) != 0) break;
+                left = d->sector_taken[my_sector];
+    
+                if (left == 0)
                 {
-                    if (left != last_left) wait_iterations = 0;
-
-                    last_left = left;
-
-                    sched_yield();
-                    wait_iterations++;
-
-                    if (wait_iterations > max_wait)
-                    {
-                        logp("[TECH %d/%d] TIMEOUT - forsowne oproznienie\n", my_sector, my_gate);
-                        
-                        d->sector_taken[my_sector] = 0;
-
-                        break;
-                    }
+                    sem_unlock(semid, 3 + my_sector);
+                    break;
                 }
+    
+                if (wait_iterations > max_wait)
+                {
+                    logp("[TECH %d/%d] TIMEOUT - forsowne oproznienie\n", my_sector, my_gate);
+                    d->sector_taken[my_sector] = 0;
+                    sem_unlock(semid, 3 + my_sector);
+                    break;
+                }
+    
+                sem_unlock(semid, 3 + my_sector);
 
-            } while (left > 0); 
+                if (wait_iterations % yield_interval == 0)
+                {
+                    sched_yield();
+                }
+    
+                wait_iterations++;
+    
+            } while (1); 
 
             logp("[TECH %d/%d] Sektor oprozniony\n", my_sector, my_gate);
 
