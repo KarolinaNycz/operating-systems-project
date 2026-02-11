@@ -23,7 +23,8 @@
 
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
-#define MAX_FANS 1000
+#define MAX_FANS 1000 //liczba fanow
+#define SECTOR_CAPACITY 110 //liczba miejsc w SEKTORZE
 #define GATES_PER_SECTOR 2
 #define MAX_GATE_CAPACITY 3
 
@@ -54,7 +55,10 @@ typedef struct
     int fan_counter;
     int vip_count;
     int total_capacity;
+    int total_taken;
+    int total_tickets_sold;
     int sector_capacity[MAX_SECTORS];
+    int sector_tickets_sold[MAX_SECTORS];
     int gate_count[MAX_SECTORS][GATES_PER_SECTOR];
     int gate_team[MAX_SECTORS][GATES_PER_SECTOR];
     int sector_taken[MAX_SECTORS];
@@ -96,7 +100,7 @@ union semun
 
 void fatal_error(const char *msg);
 
-int create_shared_memory(void);
+int create_shared_memory(int total_fans);
 int create_message_queue(void);
 int create_semaphore(void);
 
@@ -132,9 +136,9 @@ static inline int sem_unlock(int semid, int num)
     {
         if (semop(semid, &sb, 1) == 0) return 0;
 
-        if (errno == EINTR) continue;  // ✅ Kontynuuj próby
+        if (errno == EINTR) continue;  //Kontynuuj próby
 
-        if (errno == EIDRM) return -1;  // ✅ Semafor usunięty - wyjdź
+        if (errno == EIDRM) return -1;  //Semafor usunięty - wyjdź
 
         perror("semop unlock");
         exit(1);

@@ -35,13 +35,18 @@ void leave_sector(int my_sector , int my_id)
 
     if (my_sector != -1)
     {
-        if (sem_lock(g_semid, 3 + my_sector) == 0)
+        if (sem_lock(g_semid, 4 + my_sector) == 0)
         {
             if (d->sector_taken[my_sector] > 0)
             {
                 d->sector_taken[my_sector]--;
+                if (sem_lock(g_semid, 3) == 0)
+                {
+                    if (d->total_taken > 0) d->total_taken--;
+                    sem_unlock(g_semid, 3);
+                }
             }
-            sem_unlock(g_semid, 3 + my_sector);
+            sem_unlock(g_semid, 4 + my_sector);
         }
     }
 }
@@ -81,7 +86,7 @@ int main(void)
     int msqid = msgget(ftok(".", IPC_KEY + 1), 0);
     if (msqid < 0) fatal_error("fan msgget");
 
-    int semid = semget(ftok(".", IPC_KEY + 2), 3 + MAX_SECTORS, 0);
+    int semid = semget(ftok(".", IPC_KEY + 2), 4 + MAX_SECTORS, 0);
     if (semid < 0) fatal_error("fan semget");
 
     g_semid = semid;
@@ -91,7 +96,7 @@ int main(void)
     
     int my_id;
 
-    if (sem_lock(semid, 2) != 0)
+    if (sem_lock(semid, 3) != 0)
     {
         shmdt(d);
         return 0;
@@ -124,7 +129,7 @@ int main(void)
         logp("[FAN %d] Dziecko (%d lat), opiekun %d\n", my_id, age, guardian);
     }
 
-    if (sem_unlock(semid, 2) != 0)
+    if (sem_unlock(semid, 3) != 0)
     {
         shmdt(d);
         return 0;
@@ -132,7 +137,7 @@ int main(void)
 
     int vip = 0;
 
-    sem_lock(semid, 2);
+    sem_lock(semid, 3);
     double limit = 0.003 * d->fan_counter;
 
     if (d->vip_count < limit && (rand() % 1000) < 3)
@@ -140,7 +145,7 @@ int main(void)
         vip = 1;
         d->vip_count++;
     }
-    sem_unlock(semid, 2);
+    sem_unlock(semid, 3);
 
     if (vip)
     {
@@ -173,12 +178,12 @@ int main(void)
         
         if (!queued)
         {
-            sem_lock(semid, 2);
+            sem_lock(semid, 3);
             if (vip)
                 d->vip_queue++;
             else
                 d->ticket_queue++;
-            sem_unlock(semid, 2);
+            sem_unlock(semid, 3);
             queued = 1;
         }
 
@@ -309,12 +314,10 @@ int main(void)
 
         if (queued)
         {
-            sem_lock(semid, 2);
-            if (vip && d->vip_queue > 0)
-                d->vip_queue--;
-            else if (!vip && d->ticket_queue > 0)
-                d->ticket_queue--;
-            sem_unlock(semid, 2);
+            sem_lock(semid, 3);
+            if (vip && d->vip_queue > 0) d->vip_queue--;
+            else if (!vip && d->ticket_queue > 0) d->ticket_queue--;
+            sem_unlock(semid, 3);
             queued = 0;
         }
 
@@ -353,8 +356,7 @@ int main(void)
 
             if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), IPC_NOWAIT) == -1)
             {
-                if (errno != EINTR && errno != EIDRM && errno != EAGAIN) 
-                    perror("fan gate msgsnd");
+                if (errno != EINTR && errno != EIDRM && errno != EAGAIN) perror("fan gate msgsnd");
             }
 
             if (!in_gate_queue)
@@ -370,8 +372,9 @@ int main(void)
 
             ssize_t gr;
             int gate_retry = 0;
-            int max_gate_retry = 20000000;
+            int max_gate_retry = 1000000;
             
+            logp("[FAN %d] Wyslalem request do bramki %d/%d, czekam na odpowiedz...\n", my_id, res.sector, gate);
             while (gate_retry < max_gate_retry)
             {
                 if (evac_flag || d->evacuation)
@@ -379,9 +382,13 @@ int main(void)
                     leave_sector(my_sector, my_id);
                     goto exit_loop;
                 }
+
+                if (gate_retry % 1000000 == 0 && gate_retry > 0)
+                {
+                    logp("[FAN %d] UWAGA: Czekam juz %d iteracji na bramke %d/%d\n", my_id, gate_retry, res.sector, gate);
+                }
                 
-                gr = msgrcv(msqid, &gate_res, sizeof(gate_res) - sizeof(long), 
-                           my_type, IPC_NOWAIT);
+                gr = msgrcv(msqid, &gate_res, sizeof(gate_res) - sizeof(long), my_type, IPC_NOWAIT);
                 
                 if (gr >= 0)
                 {

@@ -46,7 +46,7 @@ int main(int argc, char **argv)
     int msqid = msgget(ftok(".", IPC_KEY + 1), 0);
     if (msqid < 0) fatal_error("tech msgget");
 
-    int semid = semget(ftok(".", IPC_KEY + 2), 3 + MAX_SECTORS, 0);
+    int semid = semget(ftok(".", IPC_KEY + 2), 4 + MAX_SECTORS, 0);
     if (semid < 0) fatal_error("tech semget");
 
     d = shmat(shmid, NULL, 0);
@@ -70,45 +70,65 @@ int main(int argc, char **argv)
 
         if (evac_flag || check_evac)
         {
-            logp("[TECH %d/%d] TRYB EWAKUACJI- czekam na oproznienie sektora\n",  my_sector, my_gate);
+            logp("[TECH %d/%d] TRYB EWAKUACJI\n", my_sector, my_gate);
 
-            int left;
-            int wait_iterations = 0;
-            int max_wait = 10000000;
-            int yield_interval = 50;
+            if (my_gate == 0)
+            {
+                logp("[TECH %d/%d] Czekam na oproznienie sektora\n", my_sector, my_gate);
+
+                int left;
+                int wait_iterations = 0;
+                int max_wait = 10000000;
+                int yield_interval = 50;
 
             
-            do
+                do
+                {
+                    if (sem_lock(semid, 4 + my_sector) != 0) break;
+                    left = d->sector_taken[my_sector];
+    
+                    if (left == 0)
+                    {
+                        sem_unlock(semid, 4 + my_sector);
+                        break;
+                    }
+    
+                    if (wait_iterations > max_wait)
+                    {
+                        logp("[TECH %d/%d] TIMEOUT - forsowne oproznienie\n", my_sector, my_gate);
+
+                        int current_left = d->sector_taken[my_sector];
+                        d->sector_taken[my_sector] = 0;
+                    
+                        if (sem_lock(semid, 3) == 0)
+                        {
+                            if (d->total_taken >= current_left) d->total_taken -= current_left;
+                            sem_unlock(semid, 3);
+                        }
+
+                        sem_unlock(semid, 4 + my_sector);
+                        break;
+                    }
+    
+                    sem_unlock(semid, 4 + my_sector);
+
+                    if (wait_iterations % yield_interval == 0)
+                    {
+                        sched_yield();
+                    }
+    
+                    wait_iterations++;
+    
+                } while (1); 
+
+                logp("[TECH %d/%d] Sektor oprozniony\n", my_sector, my_gate);
+
+            }
+
+            else
             {
-                if (sem_lock(semid, 3 + my_sector) != 0) break;
-                left = d->sector_taken[my_sector];
-    
-                if (left == 0)
-                {
-                    sem_unlock(semid, 3 + my_sector);
-                    break;
-                }
-    
-                if (wait_iterations > max_wait)
-                {
-                    logp("[TECH %d/%d] TIMEOUT - forsowne oproznienie\n", my_sector, my_gate);
-                    d->sector_taken[my_sector] = 0;
-                    sem_unlock(semid, 3 + my_sector);
-                    break;
-                }
-    
-                sem_unlock(semid, 3 + my_sector);
-
-                if (wait_iterations % yield_interval == 0)
-                {
-                    sched_yield();
-                }
-    
-                wait_iterations++;
-    
-            } while (1); 
-
-            logp("[TECH %d/%d] Sektor oprozniony\n", my_sector, my_gate);
+                logp("[TECH %d/%d] Bramka pomocnicza - wyslam potwierdzenie\n", my_sector, my_gate);
+            }
 
             if (!sent_confirmation)
             {
@@ -153,15 +173,12 @@ int main(int argc, char **argv)
                 {
                     logp("[TECH %d/%d] UWAGA: Nie udalo sie wyslac potwierdzenia\n", my_sector, my_gate);
                 }
-                }
-                else
-                {
-                    logp("[TECH %d/%d] Sektor oprozniony (bramka pomocnicza)\n", my_sector, my_gate);
-                }
-
-                sent_confirmation = 1;
-                break;
             }
+
+            sent_confirmation = 1;
+            break;
+            
+        }
 
         long my_type = MSG_GATE_BASE + my_sector * GATES_PER_SECTOR + my_gate;
 
@@ -180,6 +197,12 @@ int main(int argc, char **argv)
             }
             continue;
         }
+
+        if (sem_lock(semid, 2) == 0)
+        {
+            check_evac = d->evacuation;
+            sem_unlock(semid, 2);
+        }           
 
         if (check_evac || evac_flag)
         {
@@ -204,14 +227,14 @@ int main(int argc, char **argv)
 
             int blocked;
 
-            semr = sem_lock(semid, 3 + req.sector);
+            semr = sem_lock(semid, 2);
 
             if (semr == -2) continue;
 
             if (semr == -1) goto cleanup;
 
             blocked = d->sector_blocked[req.sector];
-            sem_unlock(semid, 3 + req.sector);
+            sem_unlock(semid, 2);
 
             if (blocked && last_block_state == 0)
             {
@@ -231,7 +254,7 @@ int main(int argc, char **argv)
                 continue;
             }
 
-            semr = sem_lock(semid, 3 + req.sector);
+            semr = sem_lock(semid, 4 + req.sector);
 
             if (semr == -2) continue;
 
@@ -239,7 +262,7 @@ int main(int argc, char **argv)
 
             if (check_evac || evac_flag)
             {
-                sem_unlock(semid, 3 + req.sector);
+                sem_unlock(semid, 4 + req.sector);
                 break;
             }
 
@@ -250,16 +273,18 @@ int main(int argc, char **argv)
             // Priorytet
             if (count > 0 && gteam != req.team && count < MAX_GATE_CAPACITY && !d->priority[req.pid])
             {
-                sem_lock(semid, 2);
-
+                sem_lock(semid, 3);
                 d->gate_wait[req.pid]++;
-
-                sem_unlock(semid, 2);
-
+    
                 if (d->gate_wait[req.pid] >= 5)
                 {
                     d->priority[req.pid] = 1;
+                    sem_unlock(semid, 3);
                     logp("[TECH %d/%d] Fan %d dostaje priorytet\n", my_sector, my_gate, req.pid);
+                }
+                else
+                {
+                    sem_unlock(semid, 3);
                 }
             }
 
@@ -268,7 +293,7 @@ int main(int argc, char **argv)
                 d->gate_count[req.sector][i] += need;
                 d->gate_team[req.sector][i] = req.team;
                 gate = i;
-                sem_unlock(semid, 3 + req.sector);
+                sem_unlock(semid, 4 + req.sector);
                 break;
             }
 
@@ -279,12 +304,12 @@ int main(int argc, char **argv)
                     d->gate_team[req.sector][i] = req.team;
                     d->gate_count[req.sector][i] += need;
                     gate = i;
-                    sem_unlock(semid, 3 + req.sector);
+                    sem_unlock(semid, 4 + req.sector);
                     break;
                 }
             }
 
-            sem_unlock(semid, 3 + req.sector);
+            sem_unlock(semid, 4 + req.sector);
 
             if (gate != -1 || evac_flag || check_evac)
             {
@@ -306,82 +331,95 @@ int main(int argc, char **argv)
 
         logp("[TECH %d/%d] Obsluguje fana %d\n", my_sector, my_gate, req.pid);
 
-        semr = sem_lock(semid, 3 + req.sector);
-
-        if (semr == -2) continue;
-
-        if (semr == -1) goto cleanup;
-
-
-        int f = queue_front(&d->gate_queue[req.sector]);
-        if (f == req.pid)
+        if (sem_lock(semid, 1) == 0)
         {
-            queue_pop(&d->gate_queue[req.sector]);
+            int f = queue_front(&d->gate_queue[req.sector]);
+            if (f == req.pid)
+            {
+                queue_pop(&d->gate_queue[req.sector]);
+            }
+            sem_unlock(semid, 1);
         }
 
-        d->gate_wait[req.pid] = 0;
-        d->priority[req.pid] = 0;
-
-        sem_unlock(semid, 3 + req.sector);
+        if (sem_lock(semid, 3) == 0)
+        {
+            d->gate_wait[req.pid] = 0;
+            d->priority[req.pid] = 0;
+            sem_unlock(semid, 3);
+        }
 
         if (req.tickets == 2)
         {
-            logp("[Bramka %d/%d] Sprawdzam fana %d + towarzysz (sektor %d, team %c)\n",  my_sector, gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+            logp("[Bramka %d/%d] Sprawdzam fana %d + towarzysz (sektor %d, team %c)\n",  my_sector, my_gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
         }
         else
         {
-            logp("[Bramka %d/%d] Sprawdzam fana %d (sektor %d, team %c)\n",  my_sector, gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+            logp("[Bramka %d/%d] Sprawdzam fana %d (sektor %d, team %c)\n",  my_sector, my_gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
         }
 
         // Sprawdzenie rac
         if (req.has_flare)
         {
-            logp("[Bramka %d/%d] ALARM! Fan %d ma race - WYPROWADZENIE\n", my_sector, gate, req.pid);
+            logp("[Bramka %d/%d] ALARM! Fan %d ma race - WYPROWADZENIE\n", my_sector, my_gate, req.pid);
 
             kill(req.pid, SIGKILL);
 
-            if (sem_lock(semid, 3 + req.sector) != -1)
+            if (sem_lock(semid, 4 + req.sector) != -1)
             {
                 if (d->gate_count[req.sector][gate] >= need)
                 {
                     d->gate_count[req.sector][gate] -= need;
-                    if (d->gate_count[req.sector][gate] == 0) 
-                        d->gate_team[req.sector][gate] = -1;
+                    if (d->gate_count[req.sector][gate] == 0) d->gate_team[req.sector][gate] = -1;
                 }
 
                 if (d->sector_taken[req.sector] >= need)
                 {
                     d->sector_taken[req.sector] -= need;
+                    d->sector_tickets_sold[req.sector] -= need;
+
+                    if (sem_lock(semid, 3) == 0)
+                    {
+                        if (d->total_taken >= need) d->total_taken -= need;
+                        if (d->total_tickets_sold >= need) d->total_tickets_sold -= need;
+                        sem_unlock(semid, 3);
+                    }
                 }
 
-                sem_unlock(semid, 3 + req.sector);
+                sem_unlock(semid, 4 + req.sector);
             }
             continue;
         }
 
         if (req.tickets == 2)
         {
-            logp("[Bramka %d/%d] Fan %d + osoba towarzyszaca bezpieczni\n", my_sector, gate, req.pid);
+            logp("[Bramka %d/%d] Fan %d + osoba towarzyszaca bezpieczni\n", my_sector, my_gate, req.pid);
         }
         else
         {
-            logp("[Bramka %d/%d] Fan %d bezpieczny\n", my_sector, gate, req.pid);
+            logp("[Bramka %d/%d] Fan %d bezpieczny\n", my_sector, my_gate, req.pid);
         }
 
-        if (sem_lock(semid, 3 + req.sector) != -1)
+        if (sem_lock(semid, 4 + req.sector) != -1)
         {
+            d->sector_taken[req.sector] += need;
+
+            if (sem_lock(semid, 3) == 0)
+            {
+                d->total_taken += need;
+                sem_unlock(semid, 3);
+            }
+    
             if (d->gate_count[req.sector][gate] >= need)
             {
                 d->gate_count[req.sector][gate] -= need;
-                if (d->gate_count[req.sector][gate] == 0) 
-                    d->gate_team[req.sector][gate] = -1;
+                if (d->gate_count[req.sector][gate] == 0) d->gate_team[req.sector][gate] = -1;
             }
 
-            sem_unlock(semid, 3 + req.sector);
+            sem_unlock(semid, 4 + req.sector);
         }
 
-        res.mtype  = MSG_GATE_RESPONSE + req.pid;
-        res.pid    = req.pid;
+        res.mtype = MSG_GATE_RESPONSE + req.pid;
+        res.pid = req.pid;
         res.tickets = gate;
 
         while (msgsnd(msqid, &res, sizeof(res) - sizeof(long), 0) == -1)

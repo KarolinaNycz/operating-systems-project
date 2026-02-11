@@ -80,8 +80,7 @@ void block_handler(int sig)
     if (d)
     {
         sem_lock(g_semid, 2);
-        for (int i = 0; i < MAX_SECTORS; i++) //SYGNAL 1
-            d->sector_blocked[i] = 1;
+        for (int i = 0; i < MAX_SECTORS; i++) d->sector_blocked[i] = 1;  //SYGNAL 1
         sem_unlock(g_semid, 2);
 
         logp("[MANAGER] Blokada sektorow\n");
@@ -95,8 +94,7 @@ void unblock_handler(int sig)
     if (d)
     {
         sem_lock(g_semid, 2);
-        for (int i = 0; i < MAX_SECTORS; i++) //SYGNAL 2
-            d->sector_blocked[i] = 0;
+        for (int i = 0; i < MAX_SECTORS; i++) d->sector_blocked[i] = 0;  //SYGNAL 2
         sem_unlock(g_semid, 2);
 
         logp("[MANAGER] Odblokowanie sektorow\n");
@@ -141,7 +139,7 @@ int main(void)
 
     signal(SIGALRM, alarm_handler);
 
-    g_shmid = create_shared_memory();
+    g_shmid = create_shared_memory(MAX_FANS);
     g_msqid = create_message_queue();
     g_semid = create_semaphore();
 
@@ -200,67 +198,88 @@ int main(void)
         }
     }
 
-    // automatyczna ewakuacja po 8 sekundach
-    alarm(20);
+    int evac_reason = 0;
+    // automatyczna ewakuacja po x sekundach
+    alarm(40);
 
     msg_t msg;
 
     while (!evac_flag)
     {
-        if (sem_lock(g_semid, 2) == -1) 
+        if (sem_lock(g_semid, 3) == -1) 
         {
             if (errno == EINTR) continue;
             break;
         }
 
-        int total = 0;
-        for (int i = 0; i < MAX_SECTORS; i++) 
-            total += d->sector_taken[i];
+        int total = d->total_taken;
 
         if (total >= d->total_capacity)
-        {
-            logp("[MANAGER] Stadion pelny - ewakuacja\n"); 
+        { 
+            evac_reason = 1;
             evac_flag = 1;
-            sem_unlock(g_semid, 2);
+            sem_unlock(g_semid, 3);
             break;
         }
 
+        int threshold = 10;
         int K = d->ticket_queue;
         int N = d->active_cashiers;
 
         if (N < 2) N = 2;
 
-        // zamykanie kas
-        if (N > 2 && K < (K / 10.0) * (N - 1))
+        // Zamykanie kas
+        if (N > 2 && K < threshold * (N - 1))
         {
             pid_t p = cashier_pids[N - 1];
-
+    
             kill(p, SIGTERM);
-
+    
             d->active_cashiers--;
-
-            logp("[MANAGER] Zamykam kase (%d aktywnych)\n", d->active_cashiers);
+    
+            logp("[MANAGER] Zamykam kase (kolejka=%d, kasy=%d->%d)\n", K, N, d->active_cashiers);
         }
 
-        // otwieranie kas
-        if (N < 10 && K > 20)
+        // Otwieranie kas
+        if (N < MAX_CASHIERS && K > threshold * N)
         {
             pid_t p = fork();
-
+    
             if (p == 0)
             {
                 execl("./cashier", "cashier", NULL);
                 fatal_error("execl cashier");
             }
-
+    
             cashier_pids[N] = p;
             d->active_cashiers++;
-
-            logp("[MANAGER] Otwieram kase (%d aktywnych)\n", d->active_cashiers);
+    
+            logp("[MANAGER] Otwieram kase (kolejka=%d, kasy=%d->%d)\n", K, N-1, d->active_cashiers);
         }
 
-        sem_unlock(g_semid, 2);
+        total = d->total_taken;
+    
+        if (total >= d->total_capacity)
+        {
+            logp("[MANAGER] Stadion pelny - ewakuacja\n");
+            evac_reason = 1; 
+            evac_flag = 1;
+            sem_unlock(g_semid, 3);
+            break;
+        }
 
+        sem_unlock(g_semid, 3);
+
+        sched_yield();
+    }
+
+    if (evac_reason == 1)
+    {
+        logp("[MANAGER] Stadion pelny (%d/%d) - EWAKUACJA\n", d->total_taken, d->total_capacity);
+    }
+    else if (evac_flag)
+    {
+        logp("[MANAGER] Timeout (alarm) - EWAKUACJA\n");
     }
 
     if (sem_lock(g_semid, 2) == 0)
@@ -279,6 +298,7 @@ int main(void)
     while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT) >= 0);
 
     // Wyślij ewakuację do techów
+    logp("[MANAGER] Wysylam SIG_EVACUATE do techow...\n");
     for (int s = 0; s < MAX_SECTORS; s++)
     {
         for (int g = 0; g < GATES_PER_SECTOR; g++)

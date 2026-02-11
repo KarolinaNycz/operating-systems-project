@@ -53,7 +53,7 @@ int main(void)
         return 1;
     }
 
-    int semid = semget(ftok(".", IPC_KEY + 2), 3 + MAX_SECTORS, 0);
+    int semid = semget(ftok(".", IPC_KEY + 2), 4 + MAX_SECTORS, 0);
     if (semid < 0) 
     {
         perror("cashier semget");
@@ -106,6 +106,11 @@ int main(void)
         if (d->evacuation || evac_flag)
         {
             logp("[CASHIER] Przerywam sprzedaz – ewakuacja\n");
+
+            res.mtype = MSG_TICKET_OK +req.pid;
+            res.tickets = 0;
+            msgsnd(msqid, &res, sizeof(res) - sizeof(long), IPC_NOWAIT);
+
             break;
         }
 
@@ -141,80 +146,102 @@ int main(void)
 
         int sector = req.sector;
 
+        if (!req.vip && sector == VIP_SECTOR)
+        {
+            logp("[CASHIER] Fan %d (non-VIP) nie może kupić na sektor VIP %d - szukam alternatywy\n", req.pid, VIP_SECTOR);
+            sector = -1;
+        }
+
         res.mtype = MSG_TICKET_OK + req.pid;
         res.pid = req.pid;
         res.team = req.team;
         res.sector = sector;
         res.tickets = 0;
         
-        if (sem_lock(semid, 3 + sector) == 0)
+        if (sector != -1 && sem_lock(semid, 4 + sector) == 0)
         {
             if (d->evacuation || evac_flag)
             {
-                sem_unlock(semid, 3 + sector);
+                sem_unlock(semid, 4 + sector);
                 break;
             }
 
-            int free = d->sector_capacity[sector] - d->sector_taken[sector];
+            int free = d->sector_capacity[sector] - d->sector_tickets_sold[sector];
 
             if (free >= req.want_tickets)
             {
                 //Jest miejsce - sprzedaj
-                d->sector_taken[sector] += req.want_tickets;
+                d->sector_tickets_sold[sector] += req.want_tickets;
+
+                if (sem_lock(semid, 3) == 0)
+                {
+                    d->total_tickets_sold += req.want_tickets;
+                    sem_unlock(semid, 3);
+                }
+
                 res.tickets = req.want_tickets;
                 res.sector = sector;
                 
-                int current_taken = d->sector_taken[sector];
+                int current_sold = d->sector_tickets_sold[sector];
                 int current_capacity = d->sector_capacity[sector];
                 
-                sem_unlock(semid, 3 + sector);
+                sem_unlock(semid, 4 + sector);
                 
-                logp("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d (zajete: %d/%d)\n", res.tickets, req.pid, sector, current_taken, current_capacity);
+                logp("[CASHIER] Sprzedano %d bilet(y) fanowi %d na sektor %d (zajete: %d/%d)\n", res.tickets, req.pid, sector, current_sold, current_capacity);
             }
             else
             {
                 //Brak miejsca - szukaj alternatywnego
-                sem_unlock(semid, 3 + sector);
+                sem_unlock(semid, 4 + sector);
                 
                 int found = 0;
                 
                 for (int s = 0; s < MAX_SECTORS; s++)
                 {
                     if (s == sector) continue;
+
+                    if (!req.vip && s == VIP_SECTOR) continue;
+
                     if (req.team == 0 && s >= 4) continue;
                     if (req.team == 1 && s < 4) continue;
                     
                     //Zablokuj semafor nowego sektora
-                    if (sem_lock(semid, 3 + s) != 0) continue;
+                    if (sem_lock(semid, 4 + s) != 0) continue;
                     
                     if (d->evacuation || evac_flag)
                     {
-                        sem_unlock(semid, 3 + s);
+                        sem_unlock(semid, 4 + s);
                         break;
                     }
                     
-                    int f = d->sector_capacity[s] - d->sector_taken[s];
+                    int f = d->sector_capacity[s] - d->sector_tickets_sold[s];
                     
                     if (f >= req.want_tickets)
                     {
                         //Znaleziono - sprzedaj
-                        d->sector_taken[s] += req.want_tickets;
+                        d->sector_tickets_sold[s] += req.want_tickets;
+
+                        if (sem_lock(semid, 3) == 0)
+                        {
+                            d->total_tickets_sold += req.want_tickets;
+                            sem_unlock(semid, 3);
+                        }
+
                         res.tickets = req.want_tickets;
                         res.sector = s;
                         
                         int current_taken = d->sector_taken[s];
                         int current_capacity = d->sector_capacity[s];
                         
-                        sem_unlock(semid, 3 + s);
+                        sem_unlock(semid, 4 + s);
                         
-                        logp("[CASHIER] Brak miejsca w sektorze %d dla fana %d – sprzedano bilet na sektor %d (zajete: %d/%d)\n", 
-                             sector, req.pid, s, current_taken, current_capacity);
+                        logp("[CASHIER] Brak miejsca w sektorze %d dla fana %d – sprzedano bilet na sektor %d (zajete: %d/%d)\n", sector, req.pid, s, current_taken, current_capacity);
                         
                         found = 1;
                         break;
                     }
                     
-                    sem_unlock(semid, 3 + s);
+                    sem_unlock(semid, 4 + s);
                 }
                 
                 if (!found)
@@ -256,7 +283,7 @@ int main(void)
     //Kasjer informuje o zamknięciu
     if (quit_flag)
     {
-        if (sem_lock(semid, 2) == 0)
+        if (sem_lock(semid, 3) == 0)
         {
             if (d->active_cashiers > 0)
             {
@@ -264,7 +291,7 @@ int main(void)
             }
             d->cashiers_closing = 0;
             logp("[CASHIER] Zamykam sie (aktywnych: %d)\n", d->active_cashiers);
-            sem_unlock(semid, 2);
+            sem_unlock(semid, 3);
         }
     }
     else if (evac_flag || d->evacuation)
