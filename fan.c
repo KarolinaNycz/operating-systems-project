@@ -232,6 +232,17 @@ int main(void)
             req.sector = 4 + rand() % 4;
         }
 
+        if (sem_lock(semid, 2) == 0)
+        {
+            if (d->total_tickets_sold >= d->total_capacity)
+            {
+                sem_unlock(semid, 2);
+                logp("[FAN %d] Ide do domu (brak biletow)\n", my_id);
+                break;
+            }
+            sem_unlock(semid, 2);
+        }
+
         logp("[FAN %d] Chce kupic bilet na sektor %d\n", my_id, req.sector);
 
         int send_retry = 0;
@@ -283,8 +294,7 @@ int main(void)
                 goto exit_loop;
             }
             
-            r = msgrcv(msqid, &res, sizeof(res) - sizeof(long), 
-                       MSG_TICKET_OK + my_id, IPC_NOWAIT);
+            r = msgrcv(msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK + my_id, IPC_NOWAIT);
             
             if (r >= 0)
             {
@@ -328,10 +338,32 @@ int main(void)
             logp("[VIP %d] Kupil bilet na sektor VIP\n", my_id);
             
             logp("[VIP %d] Wchodzi bez kontroli do sektora VIP\n", my_id);
+
+            logp("[VIP %d] Ogląda mecz na sektorze VIP\n", my_id);
+
+            int check_evac = 0;
+            while (!evac_flag && !check_evac && !leave_flag)
+            {
+                if (sem_lock(semid, 2) == 0)
+                {
+                    check_evac = d->evacuation;
+                    sem_unlock(semid, 2);
+                }
+                sched_yield();
+            }
             break;
         }
 
         logp("[FAN %d] Kupil %d bilet(y)\n", my_id, res.tickets);
+
+        if (res.tickets == 0)
+        {
+            if (!evac_flag && !d->evacuation)
+            {
+                logp("[FAN %d] Ide do domu (brak biletow)\n", my_id);
+            }
+            break;
+        }
 
         if (res.tickets && !vip)
         {

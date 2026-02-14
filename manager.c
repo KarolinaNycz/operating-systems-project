@@ -208,7 +208,11 @@ int main(void)
     {
         if (sem_lock(g_semid, 3) == -1) 
         {
-            if (errno == EINTR) continue;
+            if (errno == EINTR)
+            {
+                if (evac_flag) break;
+                continue;
+            }
             break;
         }
 
@@ -222,39 +226,85 @@ int main(void)
             break;
         }
 
+        int all_sold = 0;
+        if (d->total_tickets_sold >= d->total_capacity)
+        {
+            all_sold = 1;
+        
+            if (d->active_cashiers > 0)  // Zamknij tylko raz
+            {
+                logp("[MANAGER] Wszystkie bilety sprzedane (%d/%d) - zamykam kasy\n", d->total_tickets_sold, d->total_capacity);
+        
+                // Zamknij wszystkie kasy
+                for (int i = 0; i < MAX_CASHIERS; i++)
+                {
+                    if (cashier_pids[i] > 0)
+                    {
+                        kill(cashier_pids[i], SIGTERM);
+                    }
+                }
+        
+                d->active_cashiers = 0;
+            }
+        }
+        
+
         int threshold = 10;
         int K = d->ticket_queue;
         int N = d->active_cashiers;
 
         if (N < 2) N = 2;
 
-        // Zamykanie kas
-        if (N > 2 && K < threshold * (N - 1))
+        
+        if (!all_sold)
         {
-            pid_t p = cashier_pids[N - 1];
-    
-            kill(p, SIGTERM);
-    
-            d->active_cashiers--;
-    
-            logp("[MANAGER] Zamykam kase (kolejka=%d, kasy=%d->%d)\n", K, N, d->active_cashiers);
-        }
-
-        // Otwieranie kas
-        if (N < MAX_CASHIERS && K > threshold * N)
-        {
-            pid_t p = fork();
-    
-            if (p == 0)
+            // ZAWSZE min. 2 kasy gdy są bilety do sprzedania
+            if (N < 2)
             {
-                execl("./cashier", "cashier", NULL);
-                fatal_error("execl cashier");
+                // Awaryjne otwarcie kas do minimum 2
+                while (d->active_cashiers < 2)
+                {
+                    pid_t p = fork();
+                    if (p == 0)
+                    {
+                        execl("./cashier", "cashier", NULL);
+                        fatal_error("execl cashier");
+                    }
+                    cashier_pids[d->active_cashiers] = p;
+                    d->active_cashiers++;
+                }
+                logp("[MANAGER] Otwarto kasy do minimum 2 (było: %d)\n", N);
+                N = d->active_cashiers;  // Aktualizuj N
             }
+
+            // Zamykanie kas
+            if (N > 2 && K < threshold * (N - 1))
+            {
+                pid_t p = cashier_pids[N - 1];
     
-            cashier_pids[N] = p;
-            d->active_cashiers++;
+                kill(p, SIGTERM);
     
-            logp("[MANAGER] Otwieram kase (kolejka=%d, kasy=%d->%d)\n", K, N-1, d->active_cashiers);
+                d->active_cashiers--;
+    
+                logp("[MANAGER] Zamykam kase (kolejka=%d, kasy=%d->%d)\n", K, N, d->active_cashiers);
+            }
+
+            // Otwieranie kas
+            if (N < MAX_CASHIERS && K > threshold * N)
+            {
+                pid_t p = fork();
+    
+                if (p == 0)
+                {
+                    execl("./cashier", "cashier", NULL);
+                    fatal_error("execl cashier");
+                }
+    
+                cashier_pids[N] = p;
+                d->active_cashiers++;
+    
+                logp("[MANAGER] Otwieram kase (kolejka=%d, kasy=%d->%d)\n", K, N-1, d->active_cashiers);
+            }
         }
 
         total = d->total_taken;
@@ -269,6 +319,8 @@ int main(void)
         }
 
         sem_unlock(g_semid, 3);
+
+        if (evac_flag) break;
 
         sched_yield();
     }

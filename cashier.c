@@ -79,6 +79,20 @@ int main(void)
             break;
         }
 
+        //Sprawdz czy wszystkie bilety zostaly sprzedane
+        if (sem_lock(semid, 3) == 0)
+        {
+            int sold = d->total_tickets_sold;
+            int capacity = d->total_capacity;
+            sem_unlock(semid, 3);
+        
+            if (sold >= capacity)
+            {
+                logp("[CASHIER] Wszystkie bilety sprzedane (%d/%d) - zamykam kase\n", sold, capacity);
+                break;
+            }
+        }
+
         // Priorytet dla VIP
         ssize_t r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT);
 
@@ -281,7 +295,7 @@ int main(void)
     }
 
     //Kasjer informuje o zamknięciu
-    if (quit_flag)
+    if (!evac_flag && !d->evacuation)
     {
         if (sem_lock(semid, 3) == 0)
         {
@@ -294,7 +308,7 @@ int main(void)
             sem_unlock(semid, 3);
         }
     }
-    else if (evac_flag || d->evacuation)
+    else
     {
         dprintf(STDOUT_FILENO, "[CASHIER] Koncze prace (ewakuacja)\n");
 
