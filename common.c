@@ -54,6 +54,10 @@ int create_shared_memory(int total_fans)
     d->last_adult_id = 0;
     d->cashiers_closing = 0;
 
+    time_t now = time(NULL);
+    d->match_start_time = now + MATCH_START_DELAY;
+    d->match_end_time = d->match_start_time + MATCH_DURATION;
+
     for (int s = 0; s < MAX_SECTORS; s++)
     {
         for (int g = 0; g < GATES_PER_SECTOR; g++)

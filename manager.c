@@ -152,6 +152,11 @@ int main(void)
     memset(fan_pids, 0, sizeof(fan_pids));
     d->cashiers_closing = 0;
 
+    srand(time(NULL));  // DODAJ TO
+
+    int fans_created = 0;
+    time_t last_fan_creation = time(NULL);
+
     // Uruchom kasjerów
     for (int i = 0; i < MIN_CASHIERS; i++)
     {
@@ -162,20 +167,6 @@ int main(void)
             fatal_error("execl cashier");
         }
         cashier_pids[i] = p;
-    }
-
-    // Uruchom fanów
-    for (int i = 0; i < MAX_FANS; i++)
-    {
-        pid_t p = fork();
-    
-        if (p == 0)
-        {
-            execl("./fan", "fan", NULL);
-            fatal_error("execl fan");
-        }
-    
-        fan_pids[i] = p;
     }
 
     // Uruchom techów
@@ -199,13 +190,58 @@ int main(void)
     }
 
     int evac_reason = 0;
-    // automatyczna ewakuacja po x sekundach
-    alarm(40);
 
     msg_t msg;
 
+    int match_started_logged = 0;
+
     while (!evac_flag)
     {
+
+        time_t current_time = time(NULL);
+        
+        // Sprawdź czy mecz się rozpoczął
+        if (!match_started_logged && current_time >= d->match_start_time)
+        {
+            logp("[MANAGER] *** MECZ SIE ROZPOCZAL ***\n");
+            match_started_logged = 1;
+        }
+        
+        // Sprawdź czy mecz się zakończył - EWAKUACJA
+        if (current_time >= d->match_end_time)
+        {
+            logp("[MANAGER] *** MECZ SIE ZAKONCZYL - EWAKUACJA ***\n");
+            evac_reason = 3;
+            evac_flag = 1;
+            break;
+        }
+
+        // Uruchom fanów (co sekunde 10-15)
+        if (fans_created < MAX_FANS)
+        {
+            time_t current = time(NULL);
+
+            if (current - last_fan_creation >= 1)
+            {
+                int to_create = 10 + rand() % 6;
+                
+                for (int i = 0; i < to_create && fans_created < MAX_FANS; i++)
+                {
+                    pid_t p = fork();
+                    if (p == 0)
+                    {
+                        execl("./fan", "fan", NULL);
+                        fatal_error("execl fan");
+                    }
+                    fan_pids[fans_created] = p;
+                    fans_created++;
+                }
+                
+                last_fan_creation = current;
+                logp("[MANAGER] Utworzono %d/%d fanow\n", fans_created, MAX_FANS);
+            }
+        }
+
         if (sem_lock(g_semid, 3) == -1) 
         {
             if (errno == EINTR)
@@ -227,7 +263,18 @@ int main(void)
         }
 
         int all_sold = 0;
-        if (d->total_tickets_sold >= d->total_capacity)
+        int all_sectors_full = 1;
+
+        for (int i = 0; i < MAX_SECTORS; i++)
+        {
+            if (d->sector_tickets_sold[i] < d->sector_capacity[i])
+            {
+                all_sectors_full = 0;
+                break;
+            }
+        }
+        
+        if (d->total_tickets_sold >= d->total_capacity || all_sectors_full)
         {
             all_sold = 1;
         
@@ -329,9 +376,9 @@ int main(void)
     {
         logp("[MANAGER] Stadion pelny (%d/%d) - EWAKUACJA\n", d->total_taken, d->total_capacity);
     }
-    else if (evac_flag)
+    else if (evac_reason == 3)
     {
-        logp("[MANAGER] Timeout (alarm) - EWAKUACJA\n");
+        logp("[MANAGER] Koniec meczu - EWAKUACJA\n");
     }
 
     if (sem_lock(g_semid, 2) == 0)

@@ -14,6 +14,10 @@
 #include <sys/sem.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <time.h>
+
+#define MATCH_START_DELAY 10  // Mecz sie zaczyna po x sekundach
+#define MATCH_DURATION 30     // Mecz trwa x sekund
 
 #define SIG_EVACUATE (SIGRTMIN)
 
@@ -75,6 +79,8 @@ typedef struct
     int sector_reported[MAX_SECTORS];
     gate_queue_t gate_queue[MAX_SECTORS];
     int cashiers_closing;
+    time_t match_start_time;
+    time_t match_end_time;
 } shared_data_t;
 
 typedef struct
