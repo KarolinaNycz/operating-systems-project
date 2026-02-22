@@ -362,7 +362,11 @@ int main(int argc, char **argv)
         {
             logp("[Bramka %d/%d] ALARM! Fan %d ma race - WYPROWADZENIE\n", my_sector, my_gate, req.pid);
 
-            kill(req.pid, SIGKILL);
+            msg_t resp;
+            resp.mtype = MSG_GATE_RESPONSE + req.pid;
+            resp.pid = req.pid;
+            resp.tickets = -1;
+            msgsnd(msqid, &resp, sizeof(resp) - sizeof(long), IPC_NOWAIT);
 
             if (sem_lock(semid, 4 + req.sector) != -1)
             {

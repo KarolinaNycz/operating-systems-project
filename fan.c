@@ -3,6 +3,7 @@
 #include "common.h"
 #include <signal.h>
 #include <sched.h>
+#include <limits.h>
 
 volatile sig_atomic_t evac_flag = 0;
 volatile sig_atomic_t leave_flag = 0;
@@ -134,7 +135,7 @@ int main(void)
         shmdt(d);
         return 0;
     }
-
+    
     int vip = 0;
 
     sem_lock(semid, 3);
@@ -284,7 +285,7 @@ int main(void)
 
         ssize_t r;
         int recv_retry = 0;
-        int max_recv_retry = 10000000;
+        int max_recv_retry = INT_MAX;
         
         while (recv_retry < max_recv_retry)
         {
@@ -315,12 +316,6 @@ int main(void)
             
             fatal_error("fan msgrcv ticket");
         }
-        
-        if (recv_retry >= max_recv_retry)
-        {
-            logp("[FAN %d] Timeout - brak odpowiedzi od kasy\n", my_id);
-            continue;
-        }
 
         if (queued)
         {
@@ -338,6 +333,17 @@ int main(void)
             logp("[VIP %d] Kupil bilet na sektor VIP\n", my_id);
             
             logp("[VIP %d] Wchodzi bez kontroli do sektora VIP\n", my_id);
+
+            if (sem_lock(semid, 4 + my_sector) == 0)
+            {
+                d->sector_taken[my_sector]++;
+                if (sem_lock(semid, 3) == 0)
+                {
+                    d->total_taken++;
+                    sem_unlock(semid, 3);
+                }
+                sem_unlock(semid, 4 + my_sector);
+            }
 
             logp("[VIP %d] Ogląda mecz na sektorze VIP\n", my_id);
 
@@ -404,9 +410,8 @@ int main(void)
 
             ssize_t gr;
             int gate_retry = 0;
-            int max_gate_retry = 1000000;
+            int max_gate_retry = INT_MAX;
             
-            logp("[FAN %d] Wyslalem request do bramki %d/%d, czekam na odpowiedz...\n", my_id, res.sector, gate);
             while (gate_retry < max_gate_retry)
             {
                 if (evac_flag || d->evacuation)
@@ -441,11 +446,10 @@ int main(void)
                 
                 fatal_error("fan msgrcv gate");
             }
-            
-            if (gate_retry >= max_gate_retry)
+
+            if (gate_res.tickets < 0)
             {
-                logp("[FAN %d] Timeout - brak odpowiedzi z bramki\n", my_id);
-                leave_sector(my_sector, my_id);
+                logp("[FAN %d] Ide do domu (wyprowadzony - race)\n", my_id);
                 break;
             }
 

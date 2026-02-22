@@ -223,7 +223,7 @@ int main(void)
 
             if (current - last_fan_creation >= 1)
             {
-                int to_create = 10 + rand() % 6;
+                int to_create = 30 + rand() % 10;
                 
                 for (int i = 0; i < to_create && fans_created < MAX_FANS; i++)
                 {
@@ -238,7 +238,7 @@ int main(void)
                 }
                 
                 last_fan_creation = current;
-                logp("[MANAGER] Utworzono %d/%d fanow\n", fans_created, MAX_FANS);
+                logp("[MANAGER] %d/%d fanow na hali\n", fans_created, MAX_FANS);
             }
         }
 
@@ -295,14 +295,10 @@ int main(void)
             }
         }
         
-
-        int threshold = 10;
+        int threshold = d->total_capacity / 10;
         int K = d->ticket_queue;
         int N = d->active_cashiers;
 
-        if (N < 2) N = 2;
-
-        
         if (!all_sold)
         {
             // ZAWSZE min. 2 kasy gdy są bilety do sprzedania

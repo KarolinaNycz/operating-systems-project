@@ -17,7 +17,7 @@
 #include <time.h>
 
 #define MATCH_START_DELAY 10  // Mecz sie zaczyna po x sekundach
-#define MATCH_DURATION 30     // Mecz trwa x sekund
+#define MATCH_DURATION 60     // Mecz trwa x sekund
 
 #define SIG_EVACUATE (SIGRTMIN)
 
@@ -27,8 +27,8 @@
 
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
-#define MAX_FANS 150 //liczba fanow
-#define SECTOR_CAPACITY 17 //liczba miejsc w SEKTORZE
+#define MAX_FANS 2000 //liczba fanow
+#define SECTOR_CAPACITY 245 //liczba miejsc w SEKTORZE
 #define GATES_PER_SECTOR 2
 #define MAX_GATE_CAPACITY 3
 

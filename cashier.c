@@ -128,8 +128,6 @@ int main(void)
             break;
         }
 
-        logp("[CASHIER] Fan %d (Team %c) chce sektor %d\n", req.pid, req.team == 0 ? 'A' : 'B', req.sector);
-
         // Sprawdzanie dziecka
         if (req.age < 15)
         {
@@ -244,7 +242,7 @@ int main(void)
                         res.tickets = req.want_tickets;
                         res.sector = s;
                         
-                        int current_taken = d->sector_taken[s];
+                        int current_taken = d->sector_tickets_sold[s];
                         int current_capacity = d->sector_capacity[s];
                         
                         sem_unlock(semid, 4 + s);
