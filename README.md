@@ -201,7 +201,9 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 
   ## 7. Przeprowadzone testy
 
-  # 7.1 Proponowanie sektora
+  # 7.1 Proponowanie wolnego sektora
+  ![](test11.jpg)
+  ![](test12.jpg)
 
   
 
