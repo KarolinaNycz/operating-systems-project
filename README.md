@@ -204,8 +204,21 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
   # 7.1 Proponowanie wolnego sektora
   ![](test11.jpg)
   ![](test12.jpg)
-  - Kibic podczas zakupu biletu wskazuje preferowany sektor. Jeśli w danym sektorze brakuje wolnych miejsc, kasjer automatycznie przeszukuje pozostałe sektory     tej samej drużyny i przydziela bilet w pierwszym dostępnym. Kibic zostaje poinformowany o zmianie sektora i kontynuuje proces wejścia na stadion bez           konieczności ponownego ustawiania się w kolejce do kasy.
+  - Kibic podczas zakupu biletu wskazuje preferowany sektor. Jeśli w danym sektorze brakuje wolnych miejsc, kasjer automatycznie przeszukuje pozostałe sektory     i przydziela bilet w pierwszym dostępnym. Kibic zostaje poinformowany o zmianie sektora i kontynuuje proces wejścia na stadion bez konieczności ponownego      ustawiania się w kolejce do kasy.  
+    
+ **Test potwierdza, że:**
 
+- Kasjer poprawnie wykrywa brak miejsc w sektorze  
+  System blokuje sprzedaż biletu w przypadku osiągnięcia maksymalnej pojemności danego sektora.
+
+- System nie odmawia sprzedaży biletu przy dostępności miejsc w innych sektorach  
+  W sytuacji braku miejsc w wybranym sektorze kasjer proponuje alternatywny sektor z wolną pojemnością.
+
+- Kasjer respektuje przynależność kibica do drużyny  
+  Przy wyborze alternatywnego sektora uwzględniana jest drużyna kibica.
+
+- Kibice drużyn A i B nie mieszają się w sektorach  
+  System gwarantuje separację sektorów zgodnie z przypisaną drużyną.
   
 
 
