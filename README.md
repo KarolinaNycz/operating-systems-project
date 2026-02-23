@@ -1,6 +1,6 @@
-## Hala widowiskowo-sportowa 
+### Hala widowiskowo-sportowa 
 
-# 1. Ogólny opis projektu
+## 1. Ogólny opis projektu
 
 Projekt polega na symulacji systemu obsługi kibiców na stadionie, działającego w środowisku Linux/UNIX z wykorzystaniem mechanizmów komunikacji międzyprocesowej.
 
@@ -16,7 +16,7 @@ Cała symulacja generuje raport tekstowy zapisywany do pliku `raport.txt`, dokum
 
 Projekt ma na celu praktyczne wykorzystanie i zaprezentowanie mechanizmów zarządzania procesami, synchronizacji, komunikacji międzyprocesowej, obsługi sygnałów oraz pracy na zasobach systemowych w środowisku Linux/UNIX.
 
-# 2. Ogólny opis kodu
+## 2. Ogólny opis kodu
 
 Projekt został podzielony na kilka logicznie rozdzielonych plików źródłowych, z których każdy odpowiada za odrębny element symulowanego systemu. Współpraca pomiędzy modułami odbywa się za pośrednictwem mechanizmów IPC oraz wspólnych struktur danych zdefiniowanych w common.h.
 
@@ -79,125 +79,7 @@ W celu zapewnienia poprawnego, stabilnego i wydajnego działania systemu zastoso
 - **Kontrola poprawności działania procesów**  
   Zastosowanie obsługi sygnału `SIGCHLD` umożliwia usuwanie procesów zombie i poprawia stabilność systemu.
 
-# 3. Zrealizowane funkcjonalności
-
-W ramach projektu zaimplementowano następujące funkcjonalności systemu:
-
-- **Zarządzanie procesami**  
-  Tworzenie i kontrola procesów managera, kasjerów, techników oraz kibiców.
-
-- **Inicjalizacja mechanizmów IPC**  
-  Tworzenie i konfiguracja pamięci współdzielonej, kolejek komunikatów oraz semaforów System V.
-
-- **Sprzedaż biletów**  
-  Obsługa sprzedaży biletów przez kasjerów z uwzględnieniem dostępności sektorów oraz statusu VIP.
-
-- **Obsługa klientów VIP**  
-  Priorytetowa obsługa kibiców VIP w kolejkach do kas.
-
-- **Kontrola wejścia na stadion**  
-  Weryfikacja kibiców na bramkach przez techników oraz kierowanie ich do odpowiednich sektorów.
-
-- **Zarządzanie pojemnością sektorów**  
-  Monitorowanie liczby zajętych miejsc i blokowanie sprzedaży po osiągnięciu limitu.
-
-- **System kolejek do bramek**  
-  Implementacja kolejek wejściowych dla poszczególnych sektorów.
-
-- **Wykrywanie niebezpiecznych zachowań**  
-  Identyfikacja kibiców posiadających race i usuwanie ich z systemu.
-
-- **Mechanizm priorytetu przy bramkach**  
-  Przyznawanie priorytetu kibicom długo oczekującym w kolejce.
-
-- **Blokowanie i odblokowywanie sektorów**  
-  Możliwość czasowego zamykania wybranych sektorów za pomocą sygnałów systemowych.
-
-- **Procedura ewakuacji**  
-  Automatyczne oraz ręczne uruchamianie ewakuacji i nadzorowanie opróżniania sektorów.
-
-- **Dynamiczne zarządzanie kasami**  
-  Otwieranie i zamykanie kas w zależności od obciążenia systemu.
-
-- **Obsługa sytuacji wyjątkowych**  
-  Reakcja na błędy IPC, sygnały systemowe oraz nieoczekiwane zakończenie procesów.
-
-- **Rejestrowanie przebiegu symulacji**  
-  Zapisywanie zdarzeń i komunikatów do pliku `raport.txt`.
-
-- **Bezpieczne zamykanie systemu**  
-  Zwolnienie zasobów IPC oraz poprawne zakończenie wszystkich procesów.
-
-# 4. Napotkane problemy i trudności
-
-Podczas realizacji projektu napotkano szereg problemów związanych z programowaniem współbieżnym oraz komunikacją międzyprocesową.
-
-- **Ryzyko występowania zakleszczeń (deadlocków)**  
-  Niewłaściwe użycie semaforów mogło prowadzić do sytuacji, w których procesy wzajemnie się blokowały. Problem ten został rozwiązany poprzez ujednolicenie kolejności blokowania zasobów.
-
-- **Obsługa sygnałów systemowych**  
-  Trudnością było zapewnienie poprawnej reakcji procesów na sygnały ewakuacji i zakończenia pracy bez utraty danych oraz pozostawienia zasobów w niepoprawnym stanie.
-
-- **Zarządzanie zasobami IPC**  
-  Konieczne było pilnowanie poprawnego tworzenia i usuwania pamięci współdzielonej, kolejek komunikatów oraz semaforów, aby uniknąć wycieków zasobów.
-
-- **Synchronizacja kolejek przy bramkach**  
-  Implementacja kolejek wejściowych wymagała dodatkowej kontroli, aby zapobiec utracie danych oraz niepoprawnej kolejności obsługi kibiców.
-
-Napotkane trudności pozwoliły na zdobycie praktycznego doświadczenia w programowaniu współbieżnym oraz lepsze zrozumienie mechanizmów systemów operacyjnych.
-
-# 5. Wyróżniające się elementy specjalne
-
-Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonalność oraz poziom zaawansowania.
-
-- **Dynamiczne zarządzanie kasjerami**  
-  Automatyczne otwieranie i zamykanie kas w zależności od liczby oczekujących kibiców.
-
-- **Obsługa klientów VIP**  
-  Priorytetowa obsługa wybranych kibiców podczas zakupu biletów.
-
-- **System priorytetów przy bramkach**  
-  Przyznawanie pierwszeństwa kibicom długo oczekującym w kolejce.
-
-- **Wykrywanie i usuwanie kibiców z racami**
-  umożliwia wykrycie niebezpiecznych kibiców i ich usunięcie z systemu.
-
-- **Obsługa kibiców niepełnoletnich**
-  dzieci poniżej 15. roku życia mogą wejść wyłącznie pod opieką dorosłego, co jest weryfikowane przez kasjera
-
-- **Synchronizowane logowanie zdarzeń**  
-  Zabezpieczenie zapisu do pliku `raport.txt` przy użyciu semaforów.
-
-  # 6. Opis semaforów
-
-W projekcie zastosowano zestaw semaforów System V w celu synchronizacji dostępu do zasobów współdzielonych oraz zapewnienia poprawnej współpracy pomiędzy procesami.
-
-Wykorzystywane semafory pełnią następujące funkcje:
-
-- **Semafor 0 – synchronizacja logowania**  
-  Odpowiada za kontrolę dostępu do funkcji zapisujących dane do pliku `raport.txt`, zapobiegając nakładaniu się komunikatów z różnych procesów.
-
-- **Semafor 1 – kolejki bramkowe**  
-  Chroni dostęp do struktur `gate_queue` przechowywanych w pamięci współdzielonej.  
-  Używany przez techników i kibiców przy dodawaniu i usuwaniu elementów z kolejki.
-
-- **Semafor 2 – ewakuacja i blokady sektorów**  
-  Zabezpiecza odczyt i zapis flagi `evacuation` oraz tablicy `sector_blocked`.  
-  Używany przez managera przy inicjowaniu ewakuacji oraz obsłudze sygnałów `SIGUSR1` / `SIGUSR2`.
-
-- **Semafor 3 – dane globalne**  
-  Chroni wszystkie liczniki ogólnosystemowe, takie jak:
-  - liczba sprzedanych biletów,
-  - liczba kibiców na stadionie,
-  - liczba aktywnych kasjerów,
-  - rozmiary kolejek do kas.
-
-- **Semafory 4 + i – dane sektorów**  
-  Każdy sektor posiada własny semafor, który chroni dane konkretnego sektora i (sector_taken, sector_tickets_sold, gate_count), umożliwiając jednoczesne         operacje na różnych sektorach bez wzajemnego blokowania procesów.
-  
-Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwala na ograniczenie liczby blokad, zwiększenie równoległości działania oraz poprawę wydajności symulacji.
-
-# 7. Zrealizowane elementy projektu
+## 3. Zrealizowane elementy projektu
 
 - **Kasy biletowe**
   
@@ -244,5 +126,85 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
   
   - Zapis przebiegu symulacji do pliku `raport.txt`  
   - Synchronizowane logowanie z użyciem semaforów  
+
+## 4. Napotkane problemy i trudności
+
+Podczas realizacji projektu napotkano szereg problemów związanych z programowaniem współbieżnym oraz komunikacją międzyprocesową.
+
+- **Ryzyko występowania zakleszczeń (deadlocków)**  
+  Niewłaściwe użycie semaforów mogło prowadzić do sytuacji, w których procesy wzajemnie się blokowały. Problem ten został rozwiązany poprzez ujednolicenie kolejności blokowania zasobów.
+
+- **Obsługa sygnałów systemowych**  
+  Trudnością było zapewnienie poprawnej reakcji procesów na sygnały ewakuacji i zakończenia pracy bez utraty danych oraz pozostawienia zasobów w niepoprawnym stanie.
+
+- **Zarządzanie zasobami IPC**  
+  Konieczne było pilnowanie poprawnego tworzenia i usuwania pamięci współdzielonej, kolejek komunikatów oraz semaforów, aby uniknąć wycieków zasobów.
+
+- **Synchronizacja kolejek przy bramkach**  
+  Implementacja kolejek wejściowych wymagała dodatkowej kontroli, aby zapobiec utracie danych oraz niepoprawnej kolejności obsługi kibiców.
+
+Napotkane trudności pozwoliły na zdobycie praktycznego doświadczenia w programowaniu współbieżnym oraz lepsze zrozumienie mechanizmów systemów operacyjnych.
+
+## 5. Wyróżniające się elementy specjalne
+
+Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonalność oraz poziom zaawansowania.
+
+- **Dynamiczne zarządzanie kasjerami**  
+  Automatyczne otwieranie i zamykanie kas w zależności od liczby oczekujących kibiców.
+
+- **Obsługa klientów VIP**  
+  Priorytetowa obsługa wybranych kibiców podczas zakupu biletów.
+
+- **System priorytetów przy bramkach**  
+  Przyznawanie pierwszeństwa kibicom długo oczekującym w kolejce.
+
+- **Wykrywanie i usuwanie kibiców z racami**
+  umożliwia wykrycie niebezpiecznych kibiców i ich usunięcie z systemu.
+
+- **Obsługa kibiców niepełnoletnich**
+  dzieci poniżej 15. roku życia mogą wejść wyłącznie pod opieką dorosłego, co jest weryfikowane przez kasjera
+
+- **Synchronizowane logowanie zdarzeń**  
+  Zabezpieczenie zapisu do pliku `raport.txt` przy użyciu semaforów.
+
+- **Automatyczne proponowanie alternatywnego sektora**  
+  Jeśli wybrany przez kibica sektor jest pełny, kasjer automatycznie wyszukuje wolne miejsce w innym sektorze tej samej drużyny i przydziela bilet tam,          zamiast odmawiać sprzedaży.
+  
+  ## 6. Opis semaforów
+
+W projekcie zastosowano zestaw semaforów System V w celu synchronizacji dostępu do zasobów współdzielonych oraz zapewnienia poprawnej współpracy pomiędzy procesami.
+
+Wykorzystywane semafory pełnią następujące funkcje:
+
+- **Semafor 0 – synchronizacja logowania**  
+  Odpowiada za kontrolę dostępu do funkcji zapisujących dane do pliku `raport.txt`, zapobiegając nakładaniu się komunikatów z różnych procesów.
+
+- **Semafor 1 – kolejki bramkowe**  
+  Chroni dostęp do struktur `gate_queue` przechowywanych w pamięci współdzielonej.  
+  Używany przez techników i kibiców przy dodawaniu i usuwaniu elementów z kolejki.
+
+- **Semafor 2 – ewakuacja i blokady sektorów**  
+  Zabezpiecza odczyt i zapis flagi `evacuation` oraz tablicy `sector_blocked`.  
+  Używany przez managera przy inicjowaniu ewakuacji oraz obsłudze sygnałów `SIGUSR1` / `SIGUSR2`.
+
+- **Semafor 3 – dane globalne**  
+  Chroni wszystkie liczniki ogólnosystemowe, takie jak:
+  - liczba sprzedanych biletów,
+  - liczba kibiców na stadionie,
+  - liczba aktywnych kasjerów,
+  - rozmiary kolejek do kas.
+
+- **Semafory 4 + i – dane sektorów**  
+  Każdy sektor posiada własny semafor, który chroni dane konkretnego sektora i (sector_taken, sector_tickets_sold, gate_count), umożliwiając jednoczesne         operacje na różnych sektorach bez wzajemnego blokowania procesów.
+  
+Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwala na ograniczenie liczby blokad, zwiększenie równoległości działania oraz poprawę wydajności symulacji.
+
+  ## 7. Przeprowadzone testy
+
+  # 7.1 Proponowanie sektora
+
+  
+
+
 
 
