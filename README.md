@@ -214,11 +214,6 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - System nie odmawia sprzedaży biletu przy dostępności miejsc w innych sektorach  
   W sytuacji braku miejsc w wybranym sektorze kasjer proponuje alternatywny sektor z wolną pojemnością.
 
-- Kasjer respektuje przynależność kibica do drużyny  
-  Przy wyborze alternatywnego sektora uwzględniana jest drużyna kibica.
-
-- Kibice drużyn A i B nie mieszają się w sektorach  
-  System gwarantuje separację sektorów zgodnie z przypisaną drużyną.
   
 
 
