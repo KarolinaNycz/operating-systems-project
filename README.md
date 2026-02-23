@@ -229,7 +229,17 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
   Po otrzymaniu odpowiedzi `-1` kibic kończy działanie bez inkrementowania liczników `sector_taken` oraz `total_taken`.
 
 - Liczniki są poprawnie aktualizowane po wyprowadzeniu  
-  System dekrementuje `sector_tickets_sold` oraz `total_tickets_sold`, zwalniając miejsce dla innych kibiców.
+  System dekrementuje `sector_tickets_sold` oraz `total_tickets_sold`, zwalniając miejsce dla innych kibiców.  
 
+## 7.3 Odmowa sprzedaży biletu dziecku bez opiekuna
 
+ ![](test3.jpg)    
+- Dziecko poniżej 15. roku życia może pojawić się w systemie bez przypisanego opiekuna, jednak jest to zdarzenie rzadkie — każdy dorosły może być opiekunem tylko jednego dziecka, a dziecko bez opiekuna pojawia się wyłącznie wtedy, gdy w systemie nie ma wolnego dorosłego. Na potrzeby testu zwiększono prawdopodobieństwo losowania dzieci. Kasjer wykrywa brak opiekuna i odmawia sprzedaży biletu, a dziecko opuszcza system.  
 
+**Test potwierdza, że:**  
+
+- Kasjer poprawnie weryfikuje obecność opiekuna  
+  System sprawdza pole `guardian` w żądaniu zakupu biletu i odmawia sprzedaży, gdy jego wartość wynosi `0`.  
+
+- Dziecko bez opiekuna nie wchodzi na stadion  
+  Po otrzymaniu odmowy kibic kończy działanie i opuszcza system bez przydzielonego biletu ani sektora.  
