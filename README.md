@@ -215,8 +215,8 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
   W sytuacji braku miejsc w wybranym sektorze kasjer proponuje alternatywny sektor z wolną pojemnością.  
 
   ## 7.2 Wykrywanie zagrożenia
-  ![](test21.jpg)
-  ![](test22.jpg)
+  ![](test21.jpg)  
+  ![](test22.jpg)  
   ![](test23.jpg)  
 - Kibic posiadający race zostaje zatrzymany przez technika podczas kontroli przy bramce. Technik wysyła do kibica odpowiedź z wartością `-1`, która sygnalizuje wyprowadzenie ze stadionu. Kibic nie wchodzi na sektor i opuszcza system.
 
