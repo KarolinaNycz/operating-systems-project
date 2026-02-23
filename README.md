@@ -242,4 +242,22 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
   System sprawdza pole `guardian` w żądaniu zakupu biletu i odmawia sprzedaży, gdy jego wartość wynosi `0`.  
 
 - Dziecko bez opiekuna nie wchodzi na stadion  
-  Po otrzymaniu odmowy kibic kończy działanie i opuszcza system bez przydzielonego biletu ani sektora.  
+  Po otrzymaniu odmowy kibic kończy działanie i opuszcza system bez przydzielonego biletu ani sektora.
+
+ ## 7.4 Mechanizm priorytetu przy bramce
+
+![](test4.jpg)
+
+- Kibic oczekujący na wejście do sektora może zostać przepuszczony przez fanów innej drużyny, jednak po przekroczeniu limitu oczekiwania technik przyznaje mu priorytet i wpuszcza go poza kolejnością. Mechanizm priorytetu jest trudny do wywołania w normalnych warunkach — system działa na tyle sprawnie, że bramki rzadko pozostają zajęte przez kibiców innej drużyny przez dłuższy czas. Priorytet reprezentuje sytuację niepożądaną, oznaczając frustrację kibica, który został przepuszczony zbyt wiele razy.  
+- Na potrzeby testu sztucznie zainicjowano bramkę sektora `0` jako zajętą przez drużynę A oraz spowolniono technika, aby umożliwić kibicom drużyny B dłuższe oczekiwanie.
+
+**Test potwierdza, że:**
+
+- Technik poprawnie wykrywa długo oczekującego kibica  
+  System śledzi liczbę przepuszczeń w polu `gate_wait` i przyznaje priorytet po przekroczeniu ustalonego limitu.
+
+- Kibic z priorytetem jest wpuszczany poza kolejnością  
+  Po otrzymaniu priorytetu kibic wchodzi na bramkę niezależnie od drużyny aktualnie kontrolowanej.
+
+- Kibic zostaje poinformowany o otrzymaniu priorytetu  
+  W pliku `raport.txt` pojawiają się wpisy `Fan X dostaje priorytet` oraz `Zdenerwowany - dostalem priorytet`.
