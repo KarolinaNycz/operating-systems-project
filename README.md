@@ -197,5 +197,47 @@ Wykorzystywane semafory pełnią następujące funkcje:
   
 Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwala na ograniczenie liczby blokad, zwiększenie równoległości działania oraz poprawę wydajności symulacji.
 
+# 7. Zrealizowane elementy projektu
+
+- **Kasy biletowe**
+- Zawsze działają minimum 2 stanowiska kasowe  
+- Dynamiczne otwieranie kas, gdy kolejka przekracza próg `(K/10) * N`  
+- Dynamiczne zamykanie kas, gdy kolejka spada poniżej `(K/10) * (N - 1)`  
+- Jeden kibic może kupić maksymalnie 2 bilety w tym samym sektorze  
+- Kasy automatycznie zamykane po sprzedaży wszystkich biletów  
+- Obsługa klientów VIP z pominięciem kolejki (limit `0,3% * K`)  
+- Bilety sprzedawane losowo przez wszystkie kasy  
+
+- **Sektory i pojemność**
+
+- 8 sektorów dla kibiców o równej pojemności  
+- Dodatkowy sektor VIP  
+- Monitorowanie i blokowanie sprzedaży po osiągnięciu limitu sektora  
+
+- **Kontrola bezpieczeństwa przy bramkach**
+- Osobne wejście do każdego z 8 sektorów  
+- 2 stanowiska kontrolne na każdym wejściu  
+- Maksymalnie 3 osoby jednocześnie na stanowisku  
+- Gwarancja, że kibice kontrolowani równocześnie należą do tej samej drużyny  
+- Mechanizm priorytetów — kibic może zostać przepuszczony maksymalnie 5 razy, po czym otrzymuje pierwszeństwo  
+- Osobne wejście dla VIP-ów bez kontroli bezpieczeństwa  
+- Dzieci poniżej 15. roku życia wpuszczane tylko pod opieką osoby dorosłej  
+- Wykrywanie i usuwanie kibiców z racami  
+
+- **Sygnały i ewakuacja**
+- `SIGUSR1` — wstrzymanie wpuszczania kibiców do sektorów  
+- `SIGUSR2` — wznowienie wpuszczania kibiców  
+- `SIGTERM` — ewakuacja wszystkich kibiców ze stadionu  
+- Pracownik techniczny wysyła potwierdzenie do kierownika po opróżnieniu sektora  
+
+- **Kierownik (manager)**
+- Inicjalizacja wszystkich zasobów IPC  
+- Uruchamianie i zamykanie procesów kasjerów, techników i kibiców  
+- Obsługa sygnałów i nadzorowanie przebiegu całej symulacji  
+- Automatyczna ewakuacja po zakończeniu meczu lub przekroczeniu pojemności  
+
+- **Raport**
+- Zapis przebiegu symulacji do pliku `raport.txt`  
+- Synchronizowane logowanie z użyciem semaforów  
 
 
