@@ -1,6 +1,6 @@
-### Hala widowiskowo-sportowa 
+## Hala widowiskowo-sportowa 
 
-## 1. Ogólny opis projektu
+# 1. Ogólny opis projektu
 
 Projekt polega na symulacji systemu obsługi kibiców na stadionie, działającego w środowisku Linux/UNIX z wykorzystaniem mechanizmów komunikacji międzyprocesowej.
 
@@ -16,7 +16,7 @@ Cała symulacja generuje raport tekstowy zapisywany do pliku `raport.txt`, dokum
 
 Projekt ma na celu praktyczne wykorzystanie i zaprezentowanie mechanizmów zarządzania procesami, synchronizacji, komunikacji międzyprocesowej, obsługi sygnałów oraz pracy na zasobach systemowych w środowisku Linux/UNIX.
 
-## 2. Ogólny opis kodu
+# 2. Ogólny opis kodu
 
 Projekt został podzielony na kilka logicznie rozdzielonych plików źródłowych, z których każdy odpowiada za odrębny element symulowanego systemu. Współpraca pomiędzy modułami odbywa się za pośrednictwem mechanizmów IPC oraz wspólnych struktur danych zdefiniowanych w common.h.
 
@@ -79,7 +79,7 @@ W celu zapewnienia poprawnego, stabilnego i wydajnego działania systemu zastoso
 - **Kontrola poprawności działania procesów**  
   Zastosowanie obsługi sygnału `SIGCHLD` umożliwia usuwanie procesów zombie i poprawia stabilność systemu.
 
-## 3. Zrealizowane elementy projektu
+# 3. Zrealizowane elementy projektu
 
 - **Kasy biletowe**
   
@@ -127,7 +127,7 @@ W celu zapewnienia poprawnego, stabilnego i wydajnego działania systemu zastoso
   - Zapis przebiegu symulacji do pliku `raport.txt`  
   - Synchronizowane logowanie z użyciem semaforów  
 
-## 4. Napotkane problemy i trudności
+# 4. Napotkane problemy i trudności
 
 Podczas realizacji projektu napotkano szereg problemów związanych z programowaniem współbieżnym oraz komunikacją międzyprocesową.
 
@@ -145,7 +145,7 @@ Podczas realizacji projektu napotkano szereg problemów związanych z programowa
 
 Napotkane trudności pozwoliły na zdobycie praktycznego doświadczenia w programowaniu współbieżnym oraz lepsze zrozumienie mechanizmów systemów operacyjnych.
 
-## 5. Wyróżniające się elementy specjalne
+# 5. Wyróżniające się elementy specjalne
 
 Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonalność oraz poziom zaawansowania.
 
@@ -170,7 +170,7 @@ Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonal
 - **Automatyczne proponowanie alternatywnego sektora**  
   Jeśli wybrany przez kibica sektor jest pełny, kasjer automatycznie wyszukuje wolne miejsce w innym sektorze tej samej drużyny i przydziela bilet tam,          zamiast odmawiać sprzedaży.
   
-  ## 6. Opis semaforów
+  # 6. Opis semaforów
 
 W projekcie zastosowano zestaw semaforów System V w celu synchronizacji dostępu do zasobów współdzielonych oraz zapewnienia poprawnej współpracy pomiędzy procesami.
 
@@ -199,11 +199,11 @@ Wykorzystywane semafory pełnią następujące funkcje:
   
 Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwala na ograniczenie liczby blokad, zwiększenie równoległości działania oraz poprawę wydajności symulacji.
 
-  ## 7. Przeprowadzone testy
+  # 7. Przeprowadzone testy
 
-  # 7.1 Proponowanie wolnego sektora
+  ## 7.1 Proponowanie wolnego sektora
   ![](test11.jpg)
-  ![](test12.jpg)
+  ![](test12.jpg)  
   - Kibic podczas zakupu biletu wskazuje preferowany sektor. Jeśli w danym sektorze brakuje wolnych miejsc, kasjer automatycznie przeszukuje pozostałe sektory     i przydziela bilet w pierwszym dostępnym. Kibic zostaje poinformowany o zmianie sektora i kontynuuje proces wejścia na stadion bez konieczności ponownego      ustawiania się w kolejce do kasy.  
     
  **Test potwierdza, że:**
@@ -212,10 +212,24 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
   System blokuje sprzedaż biletu w przypadku osiągnięcia maksymalnej pojemności danego sektora.
 
 - System nie odmawia sprzedaży biletu przy dostępności miejsc w innych sektorach  
-  W sytuacji braku miejsc w wybranym sektorze kasjer proponuje alternatywny sektor z wolną pojemnością.
+  W sytuacji braku miejsc w wybranym sektorze kasjer proponuje alternatywny sektor z wolną pojemnością.  
 
-  
+  ## 7.2 Wykrywanie zagrożenia
+  ![](test21.jpg)
+  ![](test22.jpg)
+  ![](test23.jpg)  
+- Kibic posiadający race zostaje zatrzymany przez technika podczas kontroli przy bramce. Technik wysyła do kibica odpowiedź z wartością `-1`, która sygnalizuje wyprowadzenie ze stadionu. Kibic nie wchodzi na sektor i opuszcza system.
 
+**Test potwierdza, że:**
+
+- Technik poprawnie wykrywa kibica z racami  
+  System identyfikuje flagę `has_flare` podczas kontroli przy bramce i natychmiast przerywa proces wejścia na stadion.
+
+- Kibic z racami nie wchodzi na sektor  
+  Po otrzymaniu odpowiedzi `-1` kibic kończy działanie bez inkrementowania liczników `sector_taken` oraz `total_taken`.
+
+- Liczniki są poprawnie aktualizowane po wyprowadzeniu  
+  System dekrementuje `sector_tickets_sold` oraz `total_tickets_sold`, zwalniając miejsce dla innych kibiców.
 
 
 
