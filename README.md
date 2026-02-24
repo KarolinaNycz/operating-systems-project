@@ -261,3 +261,39 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 
 - Kibic zostaje poinformowany o otrzymaniu priorytetu  
   W pliku `raport.txt` pojawiają się wpisy `Fan X dostaje priorytet` oraz `Zdenerwowany - dostalem priorytet`.
+
+## 7.5 Test sygnałów
+
+![](test51.jpg)  
+![](test52.jpg)  
+![](test53.jpg)  
+![](test54.jpg)  
+- Manager nasłuchuje sygnałów `SIGUSR1` i `SIGUSR2` wysyłanych przez pomocniczy program `syg`. Sygnał 1 blokuje wskazany sektor, uniemożliwiając technikom wpuszczanie kibiców przez bramki. Sygnał 2 odblokowuje sektor i wznawia normalną obsługę. Do przesłania numeru sektora wraz z sygnałem wykorzystano mechanizm `sigqueue` z wartością `si_value.sival_int`.  
+  Na potrzeby testu uruchomiono system, a następnie z drugiego terminala wysłano sygnał blokady dla sektora `3`, odczekano kilka sekund i wysłano sygnał odblokowania.  
+
+**Test potwierdza, że:**  
+
+- Manager poprawnie odbiera sygnał z wartością  
+  Handler `block_handler` odczytuje numer sektora z `siginfo_t` i ustawia flagę `sector_blocked[sector] = 1` w pamięci współdzielonej.
+
+- Technik wstrzymuje obsługę podczas blokady  
+  W pliku `raport.txt` pojawiają się wpisy `[TECH x/x] Sektor ZABLOKOWANY`, a technik oczekuje bez wpuszczania kibiców.
+
+- Po odblokowaniu obsługa wraca do normy  
+  Po odebraniu sygnału 2 flaga zostaje wyzerowana i pojawia się wpis `[TECH x/x] Sektor ODBLOKOWANY`.
+
+![](test55.jpg)  
+
+- Manager nasłuchuje sygnału `SIGTERM`, który symuluje zakończenie meczu. Po jego odebraniu manager ustawia flagę ewakuacji, wysyła `SIG_EVACUATE` do wszystkich procesów, oczekuje na potwierdzenia opróżnienia sektorów od techników, a następnie zamyka system, zwalniając wszystkie zasoby IPC.  
+  Na potrzeby testu wysłano `SIGTERM` do managera przed naturalnym zakończeniem czasu meczu.  
+
+**Test potwierdza, że:**  
+
+- Manager poprawnie inicjuje procedurę zamknięcia  
+  Po odebraniu sygnału pojawia się wpis `[MANAGER] Koniec meczu - wysylam sygnal do grupy procesow`.
+
+- Wszystkie procesy kończą działanie  
+  Technicy wysyłają potwierdzenia `MSG_SECTOR_EMPTY`, manager zbiera je wszystkie i wypisuje `[MANAGER] Otrzymano wszystkie potwierdzenia`.
+
+- Zasoby IPC są poprawnie zwalniane  
+  Po zakończeniu systemu brak wiszących zasobów — weryfikacja przez `ipcs -a` nie wykazuje pozostałości po kolejkach komunikatów, semaforach ani segmentach pamięci współdzielonej.
