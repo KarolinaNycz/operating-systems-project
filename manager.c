@@ -82,31 +82,49 @@ void evacuation_handler(int s)
     write(STDOUT_FILENO, "[MANAGER] Ewakuacja\n", 20);
 }
 
-void block_handler(int sig)
+void block_handler(int sig, siginfo_t *info, void *ctx)
 {
     (void)sig;
+    (void)ctx;
+    int sector = info->si_value.sival_int;
 
     if (d)
     {
         sem_lock(g_semid, 2);
-        for (int i = 0; i < MAX_SECTORS; i++) d->sector_blocked[i] = 1;  //SYGNAL 1
+        if (sector >= 0 && sector < MAX_SECTORS)
+        {
+            d->sector_blocked[sector] = 1;
+            logp("[MANAGER] Blokada sektora %d\n", sector);
+        }
+        else
+        {
+            for (int i = 0; i < MAX_SECTORS; i++) d->sector_blocked[i] = 1;
+            logp("[MANAGER] Blokada wszystkich sektorow\n");
+        }
         sem_unlock(g_semid, 2);
-
-        logp("[MANAGER] Blokada sektorow\n");
     }
 }
 
-void unblock_handler(int sig)
+void unblock_handler(int sig, siginfo_t *info, void *ctx)
 {
     (void)sig;
+    (void)ctx;
+    int sector = info->si_value.sival_int;
 
     if (d)
     {
         sem_lock(g_semid, 2);
-        for (int i = 0; i < MAX_SECTORS; i++) d->sector_blocked[i] = 0;  //SYGNAL 2
+        if (sector >= 0 && sector < MAX_SECTORS)
+        {
+            d->sector_blocked[sector] = 0;
+            logp("[MANAGER] Odblokowanie sektora %d\n", sector);
+        }
+        else
+        {
+            for (int i = 0; i < MAX_SECTORS; i++) d->sector_blocked[i] = 0;
+            logp("[MANAGER] Odblokowanie wszystkich sektorow\n");
+        }
         sem_unlock(g_semid, 2);
-
-        logp("[MANAGER] Odblokowanie sektorow\n");
     }
 }
 
@@ -133,8 +151,20 @@ int main(void)
     sa_chld.sa_flags = SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa_chld, NULL);
 
-    signal(SIGUSR1, block_handler);  //SYGNAL 1
-    signal(SIGUSR2, unblock_handler);  //SYGNAL 2
+    struct sigaction sa_usr1;
+    memset(&sa_usr1, 0, sizeof(sa_usr1));
+    sa_usr1.sa_sigaction = block_handler;
+    sigemptyset(&sa_usr1.sa_mask);
+    sa_usr1.sa_flags = SA_SIGINFO;
+    sigaction(SIGUSR1, &sa_usr1, NULL);
+
+    struct sigaction sa_usr2;
+    memset(&sa_usr2, 0, sizeof(sa_usr2));
+    sa_usr2.sa_sigaction = unblock_handler;
+    sigemptyset(&sa_usr2.sa_mask);
+    sa_usr2.sa_flags = SA_SIGINFO;
+    sigaction(SIGUSR2, &sa_usr2, NULL);
+
     signal(SIGINT, cleanup_handler);  //CTRL + C
     signal(SIGTERM, end_match_handler); //SYGNAL 3
     signal(SIGQUIT, cleanup_handler); //CTRL + \//
@@ -198,8 +228,6 @@ int main(void)
         }
     }
 
-    int evac_reason = 0;
-
     msg_t msg;
 
     int match_started_logged = 0;
@@ -220,7 +248,6 @@ int main(void)
         if (current_time >= d->match_end_time)
         {
             logp("[MANAGER] *** MECZ SIE ZAKONCZYL - ZAMYKAM STADION ***\n");
-            evac_reason = 3;
             soft_evac = 1;
             evac_flag = 1;
             break;

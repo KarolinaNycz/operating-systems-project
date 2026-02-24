@@ -7,7 +7,7 @@ HEADERS = common.h
 
 .PHONY: all clean
 
-all: manager cashier tech fan
+all: manager cashier tech fan signal
 
 manager: manager.c $(COMMON) $(HEADERS)
 	$(CC) $(CFLAGS) manager.c $(COMMON) -o manager $(LDFLAGS)
@@ -21,5 +21,8 @@ tech: tech.c $(COMMON) $(HEADERS)
 fan: fan.c $(COMMON) $(HEADERS)
 	$(CC) $(CFLAGS) fan.c $(COMMON) -o fan $(LDFLAGS)
 
+signal: signal.c
+	$(CC) $(CFLAGS) signal.c -o signal
+
 clean:
-	rm -f manager cashier tech fan *.o raport.txt
+	rm -f manager cashier tech fan signal *.o raport.txt
