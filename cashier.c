@@ -213,9 +213,6 @@ int main(void)
                     if (s == sector) continue;
 
                     if (!req.vip && s == VIP_SECTOR) continue;
-
-                    if (req.team == 0 && s >= 4) continue;
-                    if (req.team == 1 && s < 4) continue;
                     
                     //Zablokuj semafor nowego sektora
                     if (sem_lock(semid, 4 + s) != 0) continue;

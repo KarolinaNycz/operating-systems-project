@@ -298,7 +298,7 @@ int main(void)
         int threshold = d->total_capacity / 10;
         int K = d->ticket_queue;
         int N = d->active_cashiers;
-
+        
         if (!all_sold)
         {
             // ZAWSZE min. 2 kasy gdy są bilety do sprzedania

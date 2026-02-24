@@ -118,7 +118,7 @@ int main(void)
     if (age < 15)
     {
         guardian = d->last_adult_id;
-        if (guardian == 0) guardian = 0;
+        d->last_adult_id = 0;
     }
     else
     {
@@ -224,13 +224,9 @@ int main(void)
         {
             req.sector = VIP_SECTOR;
         }
-        else if (team == 0)
-        {
-            req.sector = rand() % 4;
-        }
         else
         {
-            req.sector = 4 + rand() % 4;
+            req.sector = rand() % (MAX_SECTORS - 1);
         }
 
         if (sem_lock(semid, 2) == 0)
@@ -457,11 +453,6 @@ int main(void)
             {
                 leave_sector(my_sector, my_id);
                 break;
-            }
-
-            if (d->priority[my_id])
-            {
-                logp("[FAN %d] Zdenerwowany - dostalem priorytet\n", my_id);
             }
             
             if (d->evacuation)

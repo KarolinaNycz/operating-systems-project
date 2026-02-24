@@ -28,9 +28,9 @@
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
 #define MAX_FANS 2000 //liczba fanow
-#define SECTOR_CAPACITY 245 //liczba miejsc w SEKTORZE
-#define GATES_PER_SECTOR 2
-#define MAX_GATE_CAPACITY 3
+#define SECTOR_CAPACITY 250 //liczba miejsc w SEKTORZE
+#define GATES_PER_SECTOR 2 
+#define MAX_GATE_CAPACITY 3 
 
 #define MSG_BUY_TICKET 1
 #define MSG_BUY_TICKET_VIP 5
@@ -38,7 +38,7 @@
 #define MSG_SECTOR_EMPTY 3
 
 #define MSG_GATE_REQUEST  10
-#define MSG_GATE_RESPONSE 11
+#define MSG_GATE_RESPONSE 1000
 #define MSG_GATE_LEAVE    12
 #define MSG_GATE_REJECT 13
 #define MSG_GATE_BASE 3000
