@@ -66,11 +66,10 @@ int main(int argc, char **argv)
             check_evac = d->evacuation;
             sem_unlock(semid, 2);
         }
-        
 
         if (evac_flag || check_evac)
         {
-            logp("[TECH %d/%d] TRYB EWAKUACJI\n", my_sector, my_gate);
+            logp("[TECH %d/%d] Koniec meczu\n", my_sector, my_gate);
 
             if (my_gate == 0)
             {

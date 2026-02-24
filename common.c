@@ -65,8 +65,6 @@ int create_shared_memory(int total_fans)
             d->gate_team[s][g] = -1;
         }
     }
-    d->gate_team[0][0] = 0;
-    d->gate_count[0][0] = 2;
 
     for (int i = 0; i < MAX_SECTORS; i++)
     {

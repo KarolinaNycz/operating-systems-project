@@ -10,6 +10,7 @@
 
 volatile sig_atomic_t quit_flag = 0;
 volatile sig_atomic_t evac_flag = 0;
+volatile sig_atomic_t soft_evac = 0;
 
 static int g_shmid = -1;
 static int g_msqid = -1;
@@ -60,6 +61,14 @@ void cleanup_handler(int sig)
     (void)sig;
     quit_flag = 1;
     evac_flag = 1;
+}
+
+void end_match_handler(int sig)
+{
+    (void)sig;
+    quit_flag = 1;
+    evac_flag = 1;
+    soft_evac = 1;
 }
 
 void evacuation_handler(int s)
@@ -127,7 +136,7 @@ int main(void)
     signal(SIGUSR1, block_handler);  //SYGNAL 1
     signal(SIGUSR2, unblock_handler);  //SYGNAL 2
     signal(SIGINT, cleanup_handler);  //CTRL + C
-    signal(SIGTERM, cleanup_handler); //SYGNAL 3
+    signal(SIGTERM, end_match_handler); //SYGNAL 3
     signal(SIGQUIT, cleanup_handler); //CTRL + \//
 
     struct sigaction sa;
@@ -210,8 +219,9 @@ int main(void)
         // Sprawdź czy mecz się zakończył - EWAKUACJA
         if (current_time >= d->match_end_time)
         {
-            logp("[MANAGER] *** MECZ SIE ZAKONCZYL - EWAKUACJA ***\n");
+            logp("[MANAGER] *** MECZ SIE ZAKONCZYL - ZAMYKAM STADION ***\n");
             evac_reason = 3;
+            soft_evac = 1;
             evac_flag = 1;
             break;
         }
@@ -249,16 +259,6 @@ int main(void)
                 if (evac_flag) break;
                 continue;
             }
-            break;
-        }
-
-        int total = d->total_taken;
-
-        if (total >= d->total_capacity)
-        { 
-            evac_reason = 1;
-            evac_flag = 1;
-            sem_unlock(g_semid, 3);
             break;
         }
 
@@ -350,17 +350,6 @@ int main(void)
             }
         }
 
-        total = d->total_taken;
-    
-        if (total >= d->total_capacity)
-        {
-            logp("[MANAGER] Stadion pelny - ewakuacja\n");
-            evac_reason = 1; 
-            evac_flag = 1;
-            sem_unlock(g_semid, 3);
-            break;
-        }
-
         sem_unlock(g_semid, 3);
 
         if (evac_flag) break;
@@ -368,136 +357,138 @@ int main(void)
         sched_yield();
     }
 
-    if (evac_reason == 1)
+    if (soft_evac)
     {
-        logp("[MANAGER] Stadion pelny (%d/%d) - EWAKUACJA\n", d->total_taken, d->total_capacity);
-    }
-    else if (evac_reason == 3)
-    {
-        logp("[MANAGER] Koniec meczu - EWAKUACJA\n");
-    }
+        if (sem_lock(g_semid, 2) == 0)
+        {
+            d->evacuation = 1;
+            sem_unlock(g_semid, 2);
+        }
 
-    if (sem_lock(g_semid, 2) == 0)
+        logp("[MANAGER] Koniec meczu - wysylam sygnal do grupy procesow\n");
+
+        // WYCZYSC KOLEJKE BILETOW
+        msg_t dump;
+
+        while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET, IPC_NOWAIT) >= 0);
+
+        while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT) >= 0);
+
+        // Wyślij ewakuację do techów
+        logp("[MANAGER] Wysylam SIG_EVACUATE do techow...\n");
+        for (int s = 0; s < MAX_SECTORS; s++)
+        {
+            for (int g = 0; g < GATES_PER_SECTOR; g++)
+            {
+                if (tech_pids[s][g] > 0)
+                {
+                    kill(tech_pids[s][g], SIG_EVACUATE);
+                }
+            }
+        }
+
+        //Wyślij ewakuację do fanów
+        logp("[MANAGER] Wysylam SIG_EVACUATE do fanow...\n");
+        for (int i = 0; i < MAX_FANS; i++)
+        {
+            if (fan_pids[i] > 0)
+            {
+                kill(fan_pids[i], SIG_EVACUATE);
+            }
+        }
+
+
+        //Wyślij ewakuację do kasjerów
+        logp("[MANAGER] Wysylam SIG_EVACUATE do kasjerow...\n");
+        for (int i = 0; i < MAX_CASHIERS; i++)
+        {
+            if (cashier_pids[i] > 0)
+            {
+                kill(cashier_pids[i], SIG_EVACUATE);
+            }
+        }
+
+        logp("[MANAGER] Czekam na potwierdzenia od %d sektorow...\n", MAX_SECTORS);
+
+        int empty = 0;
+        int iterations = 0;
+        int max_iterations = 10000000;
+
+        while (empty < MAX_SECTORS && iterations < max_iterations)
+        {
+            ssize_t r = msgrcv(g_msqid, &msg, sizeof(msg) - sizeof(long),  MSG_SECTOR_EMPTY, IPC_NOWAIT);
+        
+            if (r >= 0 && msg.mtype == MSG_SECTOR_EMPTY)
+            {
+                iterations = 0;   // RESET ZAWSZE
+
+                if (!d->sector_reported[msg.sector])
+                {
+                    d->sector_reported[msg.sector] = 1;
+                    empty++;
+
+                    logp("[MANAGER] Sektor %d oprozniony (%d/%d)\n", msg.sector, empty, MAX_SECTORS);
+                }
+            }
+
+            else if (r == -1)
+            {
+                if (errno == ENOMSG)
+                {
+                    sched_yield();
+                    iterations++;
+
+                    if (iterations % 1000 == 0) sched_yield();
+
+                    continue;
+                }
+
+                if (errno == EINTR)
+                {
+                    continue;
+                }
+                if (errno == EIDRM)
+                {
+                    logp("[MANAGER] Kolejka wiadomosci usunieta\n");
+                    break;
+                }
+            }
+        }
+
+        if (empty == MAX_SECTORS) logp("[MANAGER] Otrzymano wszystkie potwierdzenia\n");
+
+        //Wyślij SIGTERM do wszystkich techow
+        for (int s = 0; s < MAX_SECTORS; s++)
+        {
+            for (int g = 0; g < GATES_PER_SECTOR; g++)
+            {
+                if (tech_pids[s][g] > 0) kill(tech_pids[s][g], SIGTERM);
+            }
+        }
+
+        //Wyślij SIGTERM do wszystkich kasjerow
+        logp("[MANAGER] Wysylam SIGTERM do kasjerow...\n");
+        for (int i = 0; i < MAX_CASHIERS; i++)
+        {
+            if (cashier_pids[i] > 0)
+            {
+                kill(cashier_pids[i], SIGTERM);
+            }
+        }
+
+        signal(SIGTERM, SIG_IGN);
+        signal(SIGCHLD, SIG_DFL);
+        kill(-getpgrp(), SIGTERM);
+        while (wait(NULL) > 0);
+    }
+    else
     {
         d->evacuation = 1;
-        sem_unlock(g_semid, 2);
+        signal(SIGTERM, SIG_IGN);
+        signal(SIGCHLD, SIG_DFL);
+        kill(-getpgrp(), SIGTERM);
+        while (wait(NULL) > 0);
     }
-
-    logp("[MANAGER] Ewakuacja - wysylam sygnal do grupy procesow\n");
-
-    // WYCZYSC KOLEJKE BILETOW
-    msg_t dump;
-
-    while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET, IPC_NOWAIT) >= 0);
-
-    while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT) >= 0);
-
-    // Wyślij ewakuację do techów
-    logp("[MANAGER] Wysylam SIG_EVACUATE do techow...\n");
-    for (int s = 0; s < MAX_SECTORS; s++)
-    {
-        for (int g = 0; g < GATES_PER_SECTOR; g++)
-        {
-            if (tech_pids[s][g] > 0)
-            {
-                kill(tech_pids[s][g], SIG_EVACUATE);
-            }
-        }
-    }
-
-    //Wyślij ewakuację do fanów
-    logp("[MANAGER] Wysylam SIG_EVACUATE do fanow...\n");
-    for (int i = 0; i < MAX_FANS; i++)
-    {
-        if (fan_pids[i] > 0)
-        {
-            kill(fan_pids[i], SIG_EVACUATE);
-        }
-    }
-
-
-    //Wyślij ewakuację do kasjerów
-    logp("[MANAGER] Wysylam SIG_EVACUATE do kasjerow...\n");
-    for (int i = 0; i < MAX_CASHIERS; i++)
-    {
-        if (cashier_pids[i] > 0)
-        {
-            kill(cashier_pids[i], SIG_EVACUATE);
-        }
-    }
-
-    logp("[MANAGER] Czekam na potwierdzenia od %d sektorow...\n", MAX_SECTORS);
-
-    int empty = 0;
-    int iterations = 0;
-    int max_iterations = 10000000;
-
-    while (empty < MAX_SECTORS && iterations < max_iterations)
-    {
-        ssize_t r = msgrcv(g_msqid, &msg, sizeof(msg) - sizeof(long),  MSG_SECTOR_EMPTY, IPC_NOWAIT);
-        
-        if (r >= 0 && msg.mtype == MSG_SECTOR_EMPTY)
-        {
-            iterations = 0;   // RESET ZAWSZE
-
-            if (!d->sector_reported[msg.sector])
-            {
-                d->sector_reported[msg.sector] = 1;
-                empty++;
-
-                logp("[MANAGER] Sektor %d oprozniony (%d/%d)\n", msg.sector, empty, MAX_SECTORS);
-            }
-        }
-
-        else if (r == -1)
-        {
-            if (errno == ENOMSG)
-            {
-                sched_yield();
-                iterations++;
-
-                if (iterations % 1000 == 0) sched_yield();
-
-                continue;
-            }
-
-            if (errno == EINTR)
-            {
-                continue;
-            }
-            if (errno == EIDRM)
-            {
-                logp("[MANAGER] Kolejka wiadomosci usunieta\n");
-                break;
-            }
-        }
-    }
-
-    if (empty == MAX_SECTORS)
-    logp("[MANAGER] Otrzymano wszystkie potwierdzenia\n");
-
-    //Wyślij SIGTERM do wszystkich techow
-    for (int s = 0; s < MAX_SECTORS; s++)
-    {
-        for (int g = 0; g < GATES_PER_SECTOR; g++)
-        {
-            if (tech_pids[s][g] > 0) kill(tech_pids[s][g], SIGTERM);
-        }
-    }
-
-    //Wyślij SIGTERM do wszystkich kasjerow
-    logp("[MANAGER] Wysylam SIGTERM do kasjerow...\n");
-    for (int i = 0; i < MAX_CASHIERS; i++)
-    {
-        if (cashier_pids[i] > 0)
-        {
-            kill(cashier_pids[i], SIGTERM);
-        }
-    }
-
-    kill(-getpgrp(), SIGTERM);
-    while (wait(NULL) > 0);
-
     cleanup();
     return 0;
 }
