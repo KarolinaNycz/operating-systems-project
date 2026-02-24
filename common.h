@@ -28,7 +28,8 @@
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
 #define MAX_FANS 2000 //liczba fanow
-#define SECTOR_CAPACITY 250 //liczba miejsc w SEKTORZE
+#define SECTOR_CAPACITY 220 //liczba miejsc w SEKTORZE
+#define K (SECTOR_CAPACITY * 8)
 #define GATES_PER_SECTOR 2 
 #define MAX_GATE_CAPACITY 3 
 

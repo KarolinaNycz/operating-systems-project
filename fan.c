@@ -138,15 +138,16 @@ int main(void)
     
     int vip = 0;
 
-    sem_lock(semid, 3);
-    double limit = 0.003 * d->fan_counter;
-
-    if (d->vip_count < limit && (rand() % 1000) < 3)
+    if (sem_lock(semid, 3) == 0)
     {
-        vip = 1;
-        d->vip_count++;
+        double limit = 0.003 * d->fan_counter;
+        if (d->vip_count < limit && (rand() % 1000) < 3)
+        {
+            vip = 1;
+            d->vip_count++;
+        }
+        sem_unlock(semid, 3);
     }
-    sem_unlock(semid, 3);
 
     if (vip)
     {
@@ -179,12 +180,12 @@ int main(void)
         
         if (!queued)
         {
-            sem_lock(semid, 3);
-            if (vip)
-                d->vip_queue++;
-            else
-                d->ticket_queue++;
-            sem_unlock(semid, 3);
+            if (sem_lock(semid, 3) == 0)
+            {
+                if (vip) d->vip_queue++;
+                else d->ticket_queue++;
+                sem_unlock(semid, 3);
+            }
             queued = 1;
         }
 
@@ -315,10 +316,12 @@ int main(void)
 
         if (queued)
         {
-            sem_lock(semid, 3);
-            if (vip && d->vip_queue > 0) d->vip_queue--;
-            else if (!vip && d->ticket_queue > 0) d->ticket_queue--;
-            sem_unlock(semid, 3);
+            if (sem_lock(semid, 3) == 0)
+            {
+                if (vip && d->vip_queue > 0) d->vip_queue--;
+                else if (!vip && d->ticket_queue > 0) d->ticket_queue--;
+                sem_unlock(semid, 3);
+            }
             queued = 0;
         }
 
@@ -395,9 +398,11 @@ int main(void)
 
             if (!in_gate_queue)
             {
-                sem_lock(semid, 1);
-                queue_push(&d->gate_queue[res.sector], my_id);
-                sem_unlock(semid, 1);
+                if (sem_lock(semid, 1) == 0)
+                {
+                    queue_push(&d->gate_queue[res.sector], my_id);
+                    sem_unlock(semid, 1);
+                }
                 in_gate_queue = 1;
             }
 

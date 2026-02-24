@@ -228,10 +228,19 @@ int main(void)
         }
     }
 
+    /*for (int i = 0; i < MAX_FANS; i++)
+    {
+        pid_t p = fork();
+        if (p == 0) { execl("./fan", "fan", NULL); fatal_error("execl fan"); }
+        fan_pids[i] = p;
+    }
+    logp("[MANAGER] Utworzono wszystkich %d fanow\n", MAX_FANS);*/
+
     msg_t msg;
 
     int match_started_logged = 0;
-
+    int drained = 0;
+    
     while (!evac_flag)
     {
 
@@ -253,14 +262,14 @@ int main(void)
             break;
         }
 
-        // Uruchom fanów (co sekunde 10-15)
+        // Uruchom fanów
         if (fans_created < MAX_FANS)
         {
             time_t current = time(NULL);
 
             if (current - last_fan_creation >= 1)
             {
-                int to_create = 30 + rand() % 10;
+                int to_create = 150 + rand() % 10;
                 
                 for (int i = 0; i < to_create && fans_created < MAX_FANS; i++)
                 {
@@ -279,33 +288,29 @@ int main(void)
             }
         }
 
-        if (sem_lock(g_semid, 3) == -1) 
+        if (sem_lock(g_semid, 3) != 0) 
         {
-            if (errno == EINTR)
-            {
-                if (evac_flag) break;
-                continue;
-            }
-            break;
+            if (evac_flag) break;
+            continue;
         }
 
         int all_sold = 0;
-        int all_sectors_full = 1;
-
+        int non_vip_full = 1;
         for (int i = 0; i < MAX_SECTORS; i++)
         {
+            if (i == VIP_SECTOR) continue;  // pomin VIP
             if (d->sector_tickets_sold[i] < d->sector_capacity[i])
             {
-                all_sectors_full = 0;
+                non_vip_full = 0;
                 break;
             }
         }
-        
-        if (d->total_tickets_sold >= d->total_capacity || all_sectors_full)
+
+        if (d->total_tickets_sold >= d->total_capacity || non_vip_full)
         {
             all_sold = 1;
         
-            if (d->active_cashiers > 0)  // Zamknij tylko raz
+            if (d->active_cashiers > 0)
             {
                 logp("[MANAGER] Wszystkie bilety sprzedane (%d/%d) - zamykam kasy\n", d->total_tickets_sold, d->total_capacity);
         
@@ -320,10 +325,35 @@ int main(void)
         
                 d->active_cashiers = 0;
             }
+                
+            sem_unlock(g_semid, 3);
+
+            if (!drained)
+            {
+                // Odsyla odmowy wszystkim czekajacym fanom
+                msg_t drain, rej;
+                while (msgrcv(g_msqid, &drain, sizeof(drain) - sizeof(long), MSG_BUY_TICKET, IPC_NOWAIT) >= 0)
+                {
+                    rej.mtype = MSG_TICKET_OK + drain.pid;
+                    rej.pid = drain.pid;
+                    rej.tickets = 0;
+                    msgsnd(g_msqid, &rej, sizeof(rej) - sizeof(long), IPC_NOWAIT);
+                }
+                while (msgrcv(g_msqid, &drain, sizeof(drain) - sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT) >= 0)
+                {
+                    rej.mtype = MSG_TICKET_OK + drain.pid;
+                    rej.pid = drain.pid;
+                    rej.tickets = 0;
+                    msgsnd(g_msqid, &rej, sizeof(rej) - sizeof(long), IPC_NOWAIT);
+                }
+            }
+    
+            sched_yield();
+            continue;
         }
         
-        int threshold = d->total_capacity / 10;
-        int K = d->ticket_queue;
+        int threshold = K / 10;
+        int queue = d->ticket_queue;
         int N = d->active_cashiers;
         
         if (!all_sold)
@@ -348,7 +378,7 @@ int main(void)
             }
 
             // Zamykanie kas
-            if (N > 2 && K < threshold * (N - 1))
+            if (N > 2 && queue < threshold * (N - 1))
             {
                 pid_t p = cashier_pids[N - 1];
     
@@ -356,11 +386,11 @@ int main(void)
     
                 d->active_cashiers--;
     
-                logp("[MANAGER] Zamykam kase (kolejka=%d, kasy=%d->%d)\n", K, N, d->active_cashiers);
+                logp("[MANAGER] Zamykam kase (kolejka=%d, kasy=%d->%d)\n", queue, N, d->active_cashiers);
             }
 
             // Otwieranie kas
-            if (N < MAX_CASHIERS && K > threshold * N)
+            if (N < MAX_CASHIERS && queue > threshold * N)
             {
                 pid_t p = fork();
     
@@ -373,7 +403,7 @@ int main(void)
                 cashier_pids[N] = p;
                 d->active_cashiers++;
     
-                logp("[MANAGER] Otwieram kase (kolejka=%d, kasy=%d->%d)\n", K, N-1, d->active_cashiers);
+                logp("[MANAGER] Otwieram kase (kolejka=%d, kasy=%d->%d)\n", queue, N-1, d->active_cashiers);
             }
         }
 
