@@ -297,3 +297,24 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 
 - Zasoby IPC są poprawnie zwalniane  
   Po zakończeniu systemu brak wiszących zasobów — weryfikacja przez `ipcs` nie wykazuje pozostałości po kolejkach komunikatów, semaforach ani segmentach pamięci współdzielonej.
+
+  ## 7.6 Dynamiczne zarządzanie kasami
+
+![](test61.jpg)  
+![](test62.jpg)  
+![](test63.jpg)  
+![](test64.jpg)  
+
+- Liczba aktywnych kas dostosowuje się do długości kolejki kibiców oczekujących na bilet. Manager cyklicznie sprawdza rozmiar kolejki i otwiera nową kasę, gdy kolejka przekracza próg `(K/10) * N` (gdzie `N` oznacza liczbę aktywnych kas), oraz zamyka kasę, gdy kolejka spada poniżej `(K/10) * (N - 1)`. Zawsze aktywne są minimum dwie kasy, dopóki bilety nie zostaną wyprzedane.  
+  Po wyprzedaniu wszystkich biletów manager zamyka wszystkie kasy i odsyła odmowy fanom, którzy zdążyli wysłać żądanie do kolejki wiadomości przed zamknięciem kas — bez tego mechanizmu oczekiwaliby oni w nieskończoność na odpowiedź.
+
+**Test potwierdza, że:**  
+
+- Manager poprawnie otwiera dodatkowe kasy przy rosnącej kolejce  
+  W logach pojawiają się wpisy `Otwieram kase (kolejka=X, kasy=N->x)` w momencie przekroczenia progu.  
+
+- Manager poprawnie zamyka nadmiarowe kasy przy malejącej kolejce  
+  W logach pojawiają się wpisy `Zamykam kase (kolejka=X, kasy=N->x)` w momencie spadku poniżej progu.  
+
+- Kasy zostają zamknięte po wyprzedaniu biletów  
+  W logach managera pojawia się wpis `Wszystkie bilety sprzedane (X/X) - zamykam kasy`, a fani oczekujący w kolejce otrzymują odmowę i opuszczają system z komunikatem `Ide do domu (brak biletow)`.  
