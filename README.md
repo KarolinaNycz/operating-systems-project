@@ -444,7 +444,7 @@ https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L235-
 https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L448-L466  
 - Tech potwierdza opróżnienie sektora:  
 https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L135-L152  
--Manager czeka na potwierdzenia od wszystkich sektorów:  
+- Manager czeka na potwierdzenia od wszystkich sektorów:  
 https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L474-L487
 
 
