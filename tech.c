@@ -275,7 +275,7 @@ int main(int argc, char **argv)
                 sem_lock(semid, 3);
                 d->gate_wait[req.pid]++;
     
-                if (d->gate_wait[req.pid] >= 2)
+                if (d->gate_wait[req.pid] >= 5)
                 {
                     d->priority[req.pid] = 1;
                     sem_unlock(semid, 3);
