@@ -318,3 +318,25 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 
 - Kasy zostają zamknięte po wyprzedaniu biletów  
   W logach managera pojawia się wpis `Wszystkie bilety sprzedane (X/X) - zamykam kasy`, a fani oczekujący w kolejce otrzymują odmowę i opuszczają system z komunikatem `Ide do domu (brak biletow)`.  
+
+## 7.7 Test obciążeniowy — 3000 kibiców  
+
+![](test71.jpg)  
+![](test72.jpg)  
+![](test73.jpg)  
+
+- Symulacja została przeprowadzona z dużą liczbą kibiców (`MAX_FANS = 3000`) w celu weryfikacji poprawności działania systemu pod dużym obciążeniem. Test sprawdza, czy wszystkie mechanizmy współpracują ze sobą poprawnie.  
+
+**Test potwierdza, że:**  
+
+- System poprawnie obsługuje 3000 równoległych procesów kibiców  
+  Wszystkie procesy kończą działanie bez zawieszenia — kibice kupują bilety, przechodzą przez bramki lub wracają do domu po odmowie.  
+
+- Bilety zostają w pełni wyprzedane  
+  Manager wykrywa wyprzedanie i zamyka kasy, a pozostali kibice w kolejce otrzymują odmowę.  
+
+- Semafory i kolejki wiadomości pozostają stabilne  
+  Nie występują błędy `EFBIG` ani zawieszone procesy oczekujące na wiadomość, która nie zostanie wysłana.  
+
+- Ewakuacja po zakończeniu meczu przebiega poprawnie  
+  Wszystkie sektory zgłaszają opróżnienie, procesy techników i kasjerów kończą działanie, manager zwalnia zasoby IPC i kończy pracę z komunikatem `Cleanup zakonczony`.  
