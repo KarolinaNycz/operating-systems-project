@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <sched.h>
 #include <limits.h>
+#include <pthread.h>
 
 volatile sig_atomic_t evac_flag = 0;
 volatile sig_atomic_t leave_flag = 0;
@@ -15,12 +16,80 @@ void evacuate(int sig)
     leave_flag = 1;
 }
 
-
 void leave(int sig)
 {
     (void)sig;
     leave_flag = 1;
 }
+
+typedef struct {
+    pthread_mutex_t mutex;
+    pthread_cond_t  cond;
+    int sector;
+    int entered;
+    int should_leave;
+    int parent_id;
+    int child_id;
+} family_sync_t;
+
+typedef struct {
+    family_sync_t *sync;
+    volatile sig_atomic_t *p_evac;
+    volatile sig_atomic_t *p_leave;
+} child_args_t;
+
+static void *child_thread_func(void *arg)
+{
+    child_args_t  *a    = (child_args_t *)arg;
+    family_sync_t *sync = a->sync;
+
+    logp("[CHILD %d] Czeka przy kasie razem z opiekunem %d\n", sync->child_id, sync->parent_id);
+
+    pthread_mutex_lock(&sync->mutex);
+    while (!sync->entered && !sync->should_leave && !*a->p_evac)
+    {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 100000000LL;
+        if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+        pthread_cond_timedwait(&sync->cond, &sync->mutex, &ts);
+    }
+    int my_sector = sync->sector;
+    int do_leave  = sync->should_leave || *a->p_evac;
+    pthread_mutex_unlock(&sync->mutex);
+
+    if (do_leave)
+    {
+        logp("[CHILD %d] Opuszcza stadion razem z opiekunem %d (bez wejscia)\n", sync->child_id, sync->parent_id);
+        return NULL;
+    }
+
+    logp("[CHILD %d] Wchodzi na sektor %d razem z opiekunem %d\n", sync->child_id, my_sector, sync->parent_id);
+    logp("[CHILD %d] Ogląda mecz na sektorze %d\n", sync->child_id, my_sector);
+
+    pthread_mutex_lock(&sync->mutex);
+    while (!sync->should_leave && !*a->p_evac)
+    {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 100000000LL;
+        if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+        pthread_cond_timedwait(&sync->cond, &sync->mutex, &ts);
+    }
+    pthread_mutex_unlock(&sync->mutex);
+
+    logp("[CHILD %d] Opuszcza stadion razem z opiekunem %d\n", sync->child_id, sync->parent_id);
+    return NULL;
+}
+
+#define SIGNAL_CHILD(sync_ptr, field, val)          \
+    do {                                            \
+        pthread_mutex_lock(&(sync_ptr)->mutex);     \
+        (sync_ptr)->field = (val);                  \
+        pthread_cond_broadcast(&(sync_ptr)->cond);  \
+        pthread_mutex_unlock(&(sync_ptr)->mutex);   \
+    } while (0)
+
 
 static shared_data_t *d = NULL;
 static int g_semid = -1;
@@ -30,7 +99,7 @@ void aggression(int sig)
     (void)sig;
 }
 
-void leave_sector(int my_sector , int my_id)
+void leave_sector(int my_sector , int my_id, int count)
 {
     (void)my_id;
 
@@ -38,14 +107,13 @@ void leave_sector(int my_sector , int my_id)
     {
         if (sem_lock(g_semid, 4 + my_sector) == 0)
         {
-            if (d->sector_taken[my_sector] > 0)
+            int dec = (d->sector_taken[my_sector] >= count) ? count : d->sector_taken[my_sector];
+            d->sector_taken[my_sector] -= dec;
+
+            if (sem_lock(g_semid, 3) == 0)
             {
-                d->sector_taken[my_sector]--;
-                if (sem_lock(g_semid, 3) == 0)
-                {
-                    if (d->total_taken > 0) d->total_taken--;
-                    sem_unlock(g_semid, 3);
-                }
+                if (d->total_taken >= dec) d->total_taken -= dec;
+                sem_unlock(g_semid, 3);
             }
             sem_unlock(g_semid, 4 + my_sector);
         }
@@ -73,13 +141,18 @@ int main(void)
     int has_flare = (rand() % 1000) < FLARE_PROB;
     int team = rand() % 2;
     int patience = 5;
-    int age;
-    int guardian = 0;
+    int age = 18 + rand() % 40;
+    int has_child = (rand() % 100) < 10;
     int first_time = 1;
     int queued = 0;
     int in_gate_queue = 0;
     int my_sector = -1;
     int already_left = 0;
+
+    pthread_t child_tid    = 0;
+    family_sync_t sync;
+    child_args_t cargs;
+    int child_started = 0;
 
     int shmid = shmget(ftok(".", IPC_KEY), sizeof(shared_data_t), 0);
     if (shmid < 0) fatal_error("fan shmget");
@@ -103,31 +176,14 @@ int main(void)
         return 0;
     }
 
-    if ((rand() % 100) < 10)
-    {
-        age = 10 + rand() % 5;
-    }
-    else
-    {
-        age = 18 + rand() % 40;
-    }
-
     my_id = ++d->fan_counter;
     d->gate_wait[my_id] = 0;
 
-    if (age < 15)
+    int child_id = 0;
+    if (has_child)
     {
-        guardian = d->last_adult_id;
-        d->last_adult_id = 0;
-    }
-    else
-    {
-        d->last_adult_id = my_id;
-    }
-
-    if (age < 15)
-    {
-        logp("[FAN %d] Dziecko (%d lat), opiekun %d\n", my_id, age, guardian);
+        child_id = ++d->fan_counter;
+        logp("[FAN %d] Przychodzi z dzieckiem (id=%d)\n", my_id, child_id);
     }
 
     if (sem_unlock(semid, 3) != 0)
@@ -154,6 +210,25 @@ int main(void)
         logp("[FAN %d] VIP (vip=%d / all=%d)\n", my_id, d->vip_count, d->fan_counter);
     }
 
+    if (has_child && !vip)
+    {
+        pthread_mutex_init(&sync.mutex, NULL);
+        pthread_cond_init(&sync.cond, NULL);
+        sync.sector       = -1;
+        sync.entered      = 0;
+        sync.should_leave = 0;
+        sync.parent_id    = my_id;
+        sync.child_id     = child_id;
+
+        cargs.sync    = &sync;
+        cargs.p_evac  = &evac_flag;
+        cargs.p_leave = &leave_flag;
+
+        pthread_create(&child_tid, NULL, child_thread_func, &cargs);
+        child_started = 1;
+    }
+
+    int want_tickets = (has_child && !vip) ? 2 : 1;
     msg_t req, res;
 
     while (!evac_flag && !leave_flag)
@@ -207,19 +282,12 @@ int main(void)
         req.pid = my_id;
         req.vip = vip;
 
-        if (rand() % 100 < 10)
-        {
-            req.want_tickets = 2;
-        }
-        else 
-        {
-            req.want_tickets = 1;
-        }
+        req.want_tickets = want_tickets;
 
         req.has_flare = has_flare;
         req.team = team;
         req.age = age;
-        req.guardian = guardian;
+        req.guardian = 0;
 
         if (vip)
         {
@@ -250,7 +318,7 @@ int main(void)
         {
             if (evac_flag || d->evacuation)
             {
-                leave_sector(my_sector, my_id);
+                leave_sector(my_sector, my_id, want_tickets);
                 goto exit_loop;
             }
 
@@ -288,7 +356,7 @@ int main(void)
         {
             if (evac_flag || d->evacuation)
             {
-                leave_sector(my_sector, my_id);
+                leave_sector(my_sector, my_id, want_tickets);
                 goto exit_loop;
             }
             
@@ -327,6 +395,17 @@ int main(void)
 
         my_sector = res.sector;
 
+        if (res.tickets > 0 && res.tickets < want_tickets && child_started)
+        {
+            logp("[FAN %d] Dostal %d zamiast %d biletow - dziecko wraca do domu\n", my_id, res.tickets, want_tickets);
+            want_tickets = res.tickets;
+            SIGNAL_CHILD(&sync, should_leave, 1);
+            pthread_join(child_tid, NULL);
+            pthread_mutex_destroy(&sync.mutex);
+            pthread_cond_destroy(&sync.cond);
+            child_started = 0;
+        }
+
         if (res.tickets && vip)
         {
             logp("[VIP %d] Kupil bilet na sektor VIP\n", my_id);
@@ -363,6 +442,22 @@ int main(void)
 
         if (res.tickets == 0)
         {
+            if (want_tickets == 2)
+            {
+                logp("[FAN %d] Brak miejsca dla 2 osob, probuje kupic 1 bilet (dziecko zostaje)\n", my_id);
+                want_tickets = 1;
+                patience = 5;
+                if (child_started)
+                {
+                    SIGNAL_CHILD(&sync, should_leave, 1);
+                    pthread_join(child_tid, NULL);
+                    pthread_mutex_destroy(&sync.mutex);
+                    pthread_cond_destroy(&sync.cond);
+                    child_started = 0;
+                }
+                continue;
+            }
+
             if (!evac_flag && !d->evacuation)
             {
                 logp("[FAN %d] Ide do domu (brak biletow)\n", my_id);
@@ -372,7 +467,11 @@ int main(void)
 
         if (res.tickets && !vip)
         {
-            if (res.tickets == 2)
+            if (has_child && res.tickets == 2)
+            {
+                logp("[FAN %d] Wraz z dzieckiem %d ma bilety na sektor %d, szuka bramki...\n", my_id, child_id, res.sector);
+            }
+            else if (res.tickets == 2)
             {
                 logp("[FAN %d] Wraz z osoba towarzyszaca ma bilety na sektor %d, szuka bramki...\n", my_id, res.sector);
             }
@@ -417,7 +516,7 @@ int main(void)
             {
                 if (evac_flag || d->evacuation)
                 {
-                    leave_sector(my_sector, my_id);
+                    leave_sector(my_sector, my_id, want_tickets);
                     goto exit_loop;
                 }
 
@@ -456,23 +555,26 @@ int main(void)
 
             if (d->evacuation)
             {
-                leave_sector(my_sector, my_id);
-                break;
-            }
-            
-            if (d->evacuation)
-            {
-                leave_sector(my_sector, my_id);
+                leave_sector(my_sector, my_id, want_tickets);
                 break;
             }
 
             logp("[FAN %d] Wchodzi na hale\n", my_id);
 
             in_gate_queue = 0;
-            
-            //CZEKA NA HALI aż będzie ewakuacja
+
+            if (child_started)
+            {
+                pthread_mutex_lock(&sync.mutex);
+                sync.sector  = my_sector;
+                sync.entered = 1;
+                pthread_cond_broadcast(&sync.cond);
+                pthread_mutex_unlock(&sync.mutex);
+                logp("[FAN %d] Sygnalizuje dziecku %d wejscie na sektor %d\n", my_id, child_id, my_sector);
+            }
+
             logp("[FAN %d] Ogląda mecz na sektorze %d\n", my_id, my_sector);
-            
+
             int check_evac = 0;
             while (!evac_flag && !check_evac && !leave_flag)
             {
@@ -486,9 +588,11 @@ int main(void)
 
             if (!already_left) 
             {
-                leave_sector(my_sector, my_id);
+                leave_sector(my_sector, my_id, want_tickets);
                 already_left = 1;
             }
+
+            if (child_started) SIGNAL_CHILD(&sync, should_leave, 1);
             
             break;
         }
@@ -497,16 +601,23 @@ int main(void)
     exit_loop:
         if ((evac_flag || d->evacuation) && !already_left)
         {
-            leave_sector(my_sector, my_id);
+            leave_sector(my_sector, my_id, want_tickets);
             already_left = 1;
         }
     
     if (my_sector != -1 && !already_left) 
     {
-        leave_sector(my_sector, my_id);
+        leave_sector(my_sector, my_id, want_tickets);
         already_left = 1;
     }
 
+    if (child_started)
+    {
+        SIGNAL_CHILD(&sync, should_leave, 1);
+        pthread_join(child_tid, NULL);
+        pthread_mutex_destroy(&sync.mutex);
+        pthread_cond_destroy(&sync.cond);
+    }
     shmdt(d);
     return 0;
 }

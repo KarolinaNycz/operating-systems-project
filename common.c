@@ -51,7 +51,6 @@ int create_shared_memory(int total_fans)
     d->total_tickets_sold = 0;
     d->vip_count = 0;
     d->vip_queue = 0;
-    d->last_adult_id = 0;
     d->cashiers_closing = 0;
 
     time_t now = time(NULL);
@@ -132,7 +131,8 @@ void remove_semaphore(int semid)
 
 void logp(const char *format, ...)
 {
-    int semid = semget(ftok(".", IPC_KEY + 2), 0, 0);
+    static int semid = -1;
+    if (semid == -1) semid = semget(ftok(".", IPC_KEY + 2), 0, 0);
 
     if (semid != -1) sem_lock(semid, 0);
 

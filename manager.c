@@ -191,7 +191,7 @@ int main(void)
     memset(fan_pids, 0, sizeof(fan_pids));
     d->cashiers_closing = 0;
 
-    srand(time(NULL));  // DODAJ TO
+    srand(time(NULL));
 
     int fans_created = 0;
     time_t last_fan_creation = time(NULL);
@@ -312,7 +312,7 @@ int main(void)
         
             if (d->active_cashiers > 0)
             {
-                logp("[MANAGER] Wszystkie bilety sprzedane (%d/%d) - zamykam kasy\n", d->total_tickets_sold, d->total_capacity);
+                logp("[MANAGER] Wszystkie bilety sprzedane (%d/%d) - zamykam kasy\n", d->total_tickets_sold, d->total_tickets_sold);
         
                 // Zamknij wszystkie kasy
                 for (int i = 0; i < MAX_CASHIERS; i++)

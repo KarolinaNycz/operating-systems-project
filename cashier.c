@@ -128,29 +128,6 @@ int main(void)
             break;
         }
 
-        // Sprawdzanie dziecka
-        if (req.age < 15)
-        {
-            if (req.guardian == 0)
-            {
-                logp("[CASHIER] Dziecko %d bez opiekuna - odmowa\n", req.pid);
-
-                res.mtype = MSG_TICKET_OK + req.pid;
-                res.tickets = 0;
-                
-                if (msgsnd(msqid, &res, sizeof(res) - sizeof(long), IPC_NOWAIT) == -1)
-                {
-                    if (errno != EINTR && errno != EIDRM && errno != EAGAIN)
-                    {
-                        perror("cashier msgsnd");
-                    }
-                }
-                continue;
-            }
-
-            logp("[CASHIER] Dziecko %d z opiekunem %d\n", req.pid, req.guardian);
-        }
-
         if (req.vip)
         {
             logp("[CASHIER] Obsluguje VIP-a %d...\n", req.pid);
@@ -179,19 +156,19 @@ int main(void)
             }
 
             int free = d->sector_capacity[sector] - d->sector_tickets_sold[sector];
+            int actual = (free >= req.want_tickets) ? req.want_tickets : free;
 
-            if (free >= req.want_tickets)
+            if (actual > 0)
             {
-                //Jest miejsce - sprzedaj
-                d->sector_tickets_sold[sector] += req.want_tickets;
+                d->sector_tickets_sold[sector] += actual;
 
                 if (sem_lock(semid, 3) == 0)
                 {
-                    d->total_tickets_sold += req.want_tickets;
+                    d->total_tickets_sold += actual;
                     sem_unlock(semid, 3);
                 }
 
-                res.tickets = req.want_tickets;
+                res.tickets = actual;
                 res.sector = sector;
                 
                 int current_sold = d->sector_tickets_sold[sector];
@@ -224,19 +201,20 @@ int main(void)
                     }
                     
                     int f = d->sector_capacity[s] - d->sector_tickets_sold[s];
-                    
-                    if (f >= req.want_tickets)
+                    int actual_alt = (f >= req.want_tickets) ? req.want_tickets : f;
+
+                    if (actual_alt > 0)
                     {
                         //Znaleziono - sprzedaj
-                        d->sector_tickets_sold[s] += req.want_tickets;
+                        d->sector_tickets_sold[s] += actual_alt;
 
                         if (sem_lock(semid, 3) == 0)
                         {
-                            d->total_tickets_sold += req.want_tickets;
+                            d->total_tickets_sold += actual_alt;
                             sem_unlock(semid, 3);
                         }
 
-                        res.tickets = req.want_tickets;
+                        res.tickets = actual_alt;
                         res.sector = s;
                         
                         int current_taken = d->sector_tickets_sold[s];

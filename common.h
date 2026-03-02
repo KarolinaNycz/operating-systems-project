@@ -67,14 +67,12 @@ typedef struct
     int gate_count[MAX_SECTORS][GATES_PER_SECTOR];
     int gate_team[MAX_SECTORS][GATES_PER_SECTOR];
     int sector_taken[MAX_SECTORS];
-    int entry_blocked[MAX_SECTORS];
     volatile int evacuation;
     int gate_wait[MAX_FANS];
     int priority[MAX_FANS];
     int active_cashiers;
     int ticket_queue;
     int vip_queue;
-    int last_adult_id;
     int sector_blocked[MAX_SECTORS];
     int sector_empty[MAX_SECTORS];
     int sector_reported[MAX_SECTORS];

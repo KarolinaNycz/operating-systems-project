@@ -19,7 +19,7 @@ tech: tech.c $(COMMON) $(HEADERS)
 	$(CC) $(CFLAGS) tech.c $(COMMON) -o tech $(LDFLAGS)
 
 fan: fan.c $(COMMON) $(HEADERS)
-	$(CC) $(CFLAGS) fan.c $(COMMON) -o fan $(LDFLAGS)
+	$(CC) $(CFLAGS) fan.c $(COMMON) -o fan $(LDFLAGS) -lpthread
 
 signal: signal.c
 	$(CC) $(CFLAGS) signal.c -o signal
