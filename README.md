@@ -434,7 +434,18 @@ https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L360-
 https://github.com/KarolinaNycz/operating-systems-project/blob/main/fan.c#L73  
 - Limit 3 osób na stanowisko bramki:  
 https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.h#L34  
-- Priorytet dla agresywnego kibica:
+- Priorytet dla agresywnego kibica:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L278-L287  
+- Dziecko wymaga opiekuna:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/main/cashier.c#L132-L152  
+- Blokowanie sektora przez technika:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L235-L254  
+- Procedura ewakuacji – manager wysyła sygnały:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L448-L466  
+- Tech potwierdza opróżnienie sektora:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L135-L152  
+- Manager czeka na potwierdzenia od wszystkich sektorów:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L474-L487
 
 
 
