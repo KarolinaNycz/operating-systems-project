@@ -16,8 +16,8 @@
 #include <stdarg.h>
 #include <time.h>
 
-#define MATCH_START_DELAY 10  // Mecz sie zaczyna po x sekundach
-#define MATCH_DURATION 60     // Mecz trwa x sekund
+#define MATCH_START_DELAY 5  // Mecz sie zaczyna po x sekundach
+#define MATCH_DURATION 30     // Mecz trwa x sekund
 
 #define SIG_EVACUATE (SIGRTMIN)
 
@@ -27,8 +27,8 @@
 
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
-#define MAX_FANS 2000 //liczba fanow
-#define SECTOR_CAPACITY 220 //liczba miejsc w SEKTORZE
+#define MAX_FANS 200 //liczba fanow
+#define SECTOR_CAPACITY 14 //liczba miejsc w SEKTORZE
 #define K (SECTOR_CAPACITY * 8)
 #define GATES_PER_SECTOR 2 
 #define MAX_GATE_CAPACITY 3 
@@ -94,6 +94,7 @@ typedef struct
     int age;
     int guardian;
     int want_tickets;
+    int has_child;
 } msg_t;
 
 union semun 
@@ -126,7 +127,7 @@ static inline int sem_lock(int semid, int num)
             return -2;
         }
 
-        if (errno == EIDRM) return -1;
+        if (errno == EIDRM || errno == EINVAL) return -1;
 
         perror("semop lock");
         exit(1);
@@ -143,7 +144,7 @@ static inline int sem_unlock(int semid, int num)
 
         if (errno == EINTR) continue;  //Kontynuuj próby
 
-        if (errno == EIDRM) return -1;  //Semafor usunięty - wyjdź
+        if (errno == EIDRM || errno == EINVAL) return -1;  //Semafor usunięty - wyjdź
 
         perror("semop unlock");
         exit(1);

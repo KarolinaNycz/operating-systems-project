@@ -349,11 +349,11 @@ int main(int argc, char **argv)
 
         if (req.tickets == 2)
         {
-            logp("[Bramka %d/%d] Sprawdzam fana %d + towarzysz (sektor %d, team %c)\n",  my_sector, my_gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+            logp("[Bramka %d/%d] Sprawdzam fana %d + %s (sektor %d, team %c)\n", my_sector, my_gate, req.pid, req.has_child ? "dziecko" : "towarzysz", req.sector, req.team == 0 ? 'A' : 'B');
         }
         else
         {
-            logp("[Bramka %d/%d] Sprawdzam fana %d (sektor %d, team %c)\n",  my_sector, my_gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
+            logp("[Bramka %d/%d] Sprawdzam fana %d (sektor %d, team %c)\n", my_sector, my_gate, req.pid, req.sector, req.team == 0 ? 'A' : 'B');
         }
 
         // Sprawdzenie rac
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
 
         if (req.tickets == 2)
         {
-            logp("[Bramka %d/%d] Fan %d + osoba towarzyszaca bezpieczni\n", my_sector, my_gate, req.pid);
+            logp("[Bramka %d/%d] Fan %d + %s bezpieczni\n", my_sector, my_gate, req.pid, req.has_child ? "dziecko" : "towarzysz");
         }
         else
         {

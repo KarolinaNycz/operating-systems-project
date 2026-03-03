@@ -30,6 +30,7 @@ typedef struct {
     int should_leave;
     int parent_id;
     int child_id;
+    int is_child;
 } family_sync_t;
 
 typedef struct {
@@ -43,7 +44,14 @@ static void *child_thread_func(void *arg)
     child_args_t  *a    = (child_args_t *)arg;
     family_sync_t *sync = a->sync;
 
-    logp("[CHILD %d] Czeka przy kasie razem z opiekunem %d\n", sync->child_id, sync->parent_id);
+    if (sync->is_child)
+    {
+        logp("[CHILD %d] Czeka przy kasie razem z opiekunem %d\n", sync->child_id, sync->parent_id);
+    }
+    else
+    {
+        logp("[COMPANION %d] Czeka przy kasie razem z %d\n", sync->child_id, sync->parent_id);
+    }
 
     pthread_mutex_lock(&sync->mutex);
     while (!sync->entered && !sync->should_leave && !*a->p_evac)
@@ -60,12 +68,34 @@ static void *child_thread_func(void *arg)
 
     if (do_leave)
     {
-        logp("[CHILD %d] Opuszcza stadion razem z opiekunem %d (bez wejscia)\n", sync->child_id, sync->parent_id);
+        if (sync->is_child)
+        {
+            logp("[CHILD %d] Opuszcza stadion razem z opiekunem %d (bez wejscia)\n", sync->child_id, sync->parent_id);
+        }
+        else
+        {
+            logp("[COMPANION %d] Opuszcza stadion razem z %d (bez wejscia)\n", sync->child_id, sync->parent_id);
+        }
         return NULL;
     }
 
-    logp("[CHILD %d] Wchodzi na sektor %d razem z opiekunem %d\n", sync->child_id, my_sector, sync->parent_id);
-    logp("[CHILD %d] Ogląda mecz na sektorze %d\n", sync->child_id, my_sector);
+    if (sync->is_child)
+    {
+        logp("[CHILD %d] Wchodzi na sektor %d razem z opiekunem %d\n", sync->child_id, my_sector, sync->parent_id);
+    }
+    else
+    {
+        logp("[COMPANION %d] Wchodzi na sektor %d razem z %d\n", sync->child_id, my_sector, sync->parent_id);
+    }
+
+    if (sync->is_child)
+    {
+        logp("[CHILD %d] Ogląda mecz na sektorze %d\n", sync->child_id, my_sector);
+    }
+    else
+    {
+        logp("[COMPANION %d] Ogląda mecz na sektorze %d\n", sync->child_id, my_sector);
+    }
 
     pthread_mutex_lock(&sync->mutex);
     while (!sync->should_leave && !*a->p_evac)
@@ -78,7 +108,14 @@ static void *child_thread_func(void *arg)
     }
     pthread_mutex_unlock(&sync->mutex);
 
-    logp("[CHILD %d] Opuszcza stadion razem z opiekunem %d\n", sync->child_id, sync->parent_id);
+    if (sync->is_child)
+    {
+        logp("[CHILD %d] Opuszcza stadion razem z opiekunem %d\n", sync->child_id, sync->parent_id);
+    }
+    else
+    {
+        logp("[COMPANION %d] Opuszcza stadion razem z %d\n", sync->child_id, sync->parent_id);
+    }
     return NULL;
 }
 
@@ -143,6 +180,7 @@ int main(void)
     int patience = 5;
     int age = 18 + rand() % 40;
     int has_child = (rand() % 100) < 10;
+    int has_companion = !has_child && (rand() % 100) < 20;
     int first_time = 1;
     int queued = 0;
     int in_gate_queue = 0;
@@ -180,10 +218,18 @@ int main(void)
     d->gate_wait[my_id] = 0;
 
     int child_id = 0;
-    if (has_child)
+
+    if (has_child || has_companion)
     {
         child_id = ++d->fan_counter;
-        logp("[FAN %d] Przychodzi z dzieckiem (id=%d)\n", my_id, child_id);
+        if (has_child)
+        {
+            logp("[FAN %d] Przychodzi z dzieckiem (id=%d)\n", my_id, child_id);
+        }
+        else
+        {
+            logp("[FAN %d] Przychodzi z towarzyszem (id=%d)\n", my_id, child_id);
+        }
     }
 
     if (sem_unlock(semid, 3) != 0)
@@ -210,25 +256,27 @@ int main(void)
         logp("[FAN %d] VIP (vip=%d / all=%d)\n", my_id, d->vip_count, d->fan_counter);
     }
 
-    if (has_child && !vip)
+    int want_tickets = (has_child || has_companion) && !vip ? 2 : 1;
+
+    if ((has_child || has_companion) && !vip)
     {
         pthread_mutex_init(&sync.mutex, NULL);
         pthread_cond_init(&sync.cond, NULL);
-        sync.sector       = -1;
-        sync.entered      = 0;
+        sync.sector = -1;
+        sync.entered = 0;
         sync.should_leave = 0;
-        sync.parent_id    = my_id;
-        sync.child_id     = child_id;
+        sync.parent_id = my_id;
+        sync.child_id = child_id;
+        sync.is_child = has_child;
 
-        cargs.sync    = &sync;
-        cargs.p_evac  = &evac_flag;
+        cargs.sync = &sync;
+        cargs.p_evac = &evac_flag;
         cargs.p_leave = &leave_flag;
 
         pthread_create(&child_tid, NULL, child_thread_func, &cargs);
         child_started = 1;
     }
 
-    int want_tickets = (has_child && !vip) ? 2 : 1;
     msg_t req, res;
 
     while (!evac_flag && !leave_flag)
@@ -397,7 +445,7 @@ int main(void)
 
         if (res.tickets > 0 && res.tickets < want_tickets && child_started)
         {
-            logp("[FAN %d] Dostal %d zamiast %d biletow - dziecko wraca do domu\n", my_id, res.tickets, want_tickets);
+            logp("[FAN %d] Dostal %d zamiast %d biletow - %s wraca do domu\n", my_id, res.tickets, want_tickets, has_child ? "dziecko" : "towarzysz");
             want_tickets = res.tickets;
             SIGNAL_CHILD(&sync, should_leave, 1);
             pthread_join(child_tid, NULL);
@@ -444,7 +492,8 @@ int main(void)
         {
             if (want_tickets == 2)
             {
-                logp("[FAN %d] Brak miejsca dla 2 osob, probuje kupic 1 bilet (dziecko zostaje)\n", my_id);
+                logp("[FAN %d] Brak miejsca dla 2 osob, probuje kupic 1 bilet (%s zostaje)\n", my_id, has_child ? "dziecko" : "towarzysz");
+
                 want_tickets = 1;
                 patience = 5;
                 if (child_started)
@@ -489,6 +538,7 @@ int main(void)
             gate_req.sector = res.sector;
             gate_req.has_flare = has_flare;
             gate_req.tickets = res.tickets;
+            gate_req.has_child = has_child;
 
             if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), IPC_NOWAIT) == -1)
             {
@@ -570,7 +620,7 @@ int main(void)
                 sync.entered = 1;
                 pthread_cond_broadcast(&sync.cond);
                 pthread_mutex_unlock(&sync.mutex);
-                logp("[FAN %d] Sygnalizuje dziecku %d wejscie na sektor %d\n", my_id, child_id, my_sector);
+                logp("[FAN %d] Sygnalizuje %s %d wejscie na sektor %d\n", my_id, has_child ? "dziecku" : "towarzyszowi", child_id, my_sector);
             }
 
             logp("[FAN %d] Ogląda mecz na sektorze %d\n", my_id, my_sector);
