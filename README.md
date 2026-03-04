@@ -234,9 +234,39 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - Liczniki są poprawnie aktualizowane po wyprowadzeniu  
   System dekrementuje `sector_tickets_sold` oraz `total_tickets_sold`, zwalniając miejsce dla innych kibiców.  
 
-## 7.3 Odmowa sprzedaży biletu dziecku bez opiekuna
+## 7.3 Obsługa kibica z dzieckiem lub osobą towarzyszącą
 
- ![](test3.jpg)    
+ ![](test81.jpg)    
+ ![](test82.jpg)   
+ ![](test83.jpg)   
+
+ 
+- Część kibiców może pojawić się na stadionie z dzieckiem lub osobą towarzyszącą.  
+  W takim przypadku proces kibica tworzy dodatkowy wątek reprezentujący dziecko
+  lub towarzysza. Oba podmioty działają równolegle i synchronizują swoje działania
+  za pomocą mechanizmów `pthread` (muteks oraz zmienna warunkowa).
+
+- Kibic próbuje zakupić dwa bilety w tym samym sektorze — dla siebie oraz osoby
+  towarzyszącej. Jeśli kasjer nie jest w stanie przydzielić dwóch miejsc w jednym
+  sektorze, sprzedaż zostaje ograniczona do jednego biletu. W takiej sytuacji
+  dziecko lub towarzysz nie wchodzi na stadion i kończy działanie.
+
+- Po wejściu kibica na sektor główny proces przekazuje informację do wątku
+  dziecka/towarzysza, który następnie wchodzi razem z opiekunem i pozostaje z nim
+  do momentu zakończenia meczu lub ewakuacji.
+
+**Test potwierdza, że:**
+
+- Synchronizacja pomiędzy procesem kibica i wątkiem dziecka działa poprawnie.  
+  Wątek oczekuje na sygnał od procesu głównego przed wejściem na stadion.
+
+- W przypadku braku dwóch dostępnych biletów dziecko lub osoba towarzysząca
+  nie wchodzi na stadion.  
+  System kończy działanie wątku, a kibic kontynuuje symulację samodzielnie.
+
+- Po wejściu na stadion dziecko/towarzysz pozostaje zsynchronizowany
+  z opiekunem.  
+  Podczas ewakuacji lub zakończenia meczu obie jednostki opuszczają stadion razem.
 
 
  ## 7.4 Mechanizm priorytetu przy bramce
