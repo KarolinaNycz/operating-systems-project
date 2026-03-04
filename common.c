@@ -44,7 +44,7 @@ int create_shared_memory(int total_fans)
         d->sector_taken[i] = 0;
     }
 
-    d->total_capacity = (MAX_SECTORS - 1) * SECTOR_CAPACITY;
+    d->total_capacity = (MAX_SECTORS - 1) * SECTOR_CAPACITY + vip_capacity;
     
     logp("[SYSTEM] Capacity VIP (sektor %d): %d miejsc (0.3%% z %d fanow)\n", VIP_SECTOR, vip_capacity, total_fans);
     logp("[SYSTEM] Total capacity: %d miejsc\n", d->total_capacity);

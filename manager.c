@@ -207,6 +207,7 @@ int main(void)
         }
         cashier_pids[i] = p;
     }
+    d->active_cashiers = MIN_CASHIERS;
 
     // Uruchom techów
     for (int s = 0; s < MAX_SECTORS; s++)
@@ -272,7 +273,7 @@ int main(void)
 
             if (current - last_fan_creation >= 1)
             {
-                int to_create = 1000 + rand() % 10;
+                int to_create = 5000 + rand() % 10;
                 
                 for (int i = 0; i < to_create && fans_created < MAX_FANS; i++)
                 {
@@ -406,17 +407,14 @@ int main(void)
 
     if (soft_evac)
     {
-        logp("[MANAGER] DEBUG 1: wchodze w soft_evac\n");
         if (sem_lock(g_semid, 2) == 0)
         {
-            logp("[MANAGER] DEBUG 2: po sem_lock(2)\n");
             d->evacuation = 1;
             sem_unlock(g_semid, 2);
         }
 
         logp("[MANAGER] Koniec meczu - wysylam sygnal do grupy procesow\n");
 
-        logp("[MANAGER] DEBUG 3: przed czyszczeniem kolejki\n");
         // WYCZYSC KOLEJKE BILETOW
         msg_t dump;
 
@@ -424,7 +422,6 @@ int main(void)
 
         while (msgrcv(g_msqid, &dump, sizeof(dump)-sizeof(long), MSG_BUY_TICKET_VIP, IPC_NOWAIT) >= 0);
 
-        logp("[MANAGER] DEBUG 4: kolejka wyczyszczona\n");
         // Wyślij ewakuację do techów
         logp("[MANAGER] Wysylam SIG_EVACUATE do techow...\n");
         for (int s = 0; s < MAX_SECTORS; s++)
@@ -456,9 +453,10 @@ int main(void)
             if (cashier_pids[i] > 0)
             {
                 kill(cashier_pids[i], SIG_EVACUATE);
+                cashier_pids[i] = 0;
             }
         }
-        logp("[MANAGER] DEBUG 5: wszystkie sygnaly wyslane\n");
+        d->active_cashiers = 0;
 
         logp("[MANAGER] Czekam na potwierdzenia od %d sektorow...\n", MAX_SECTORS);
 

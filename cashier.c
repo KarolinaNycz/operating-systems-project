@@ -117,6 +117,11 @@ int main(void)
             break;
         }
 
+        if (quit_flag || evac_flag || d->evacuation)
+        {
+            break;
+        }
+
         if (d->evacuation || evac_flag)
         {
             logp("[CASHIER] Przerywam sprzedaz – ewakuacja\n");

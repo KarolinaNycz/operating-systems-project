@@ -177,6 +177,7 @@ int main(void)
     int in_gate_queue = 0;
     int my_sector = -1;
     int already_left = 0;
+    int vip_entered = 0;
 
     pthread_t child_tid = 0;
     family_sync_t sync;
@@ -288,8 +289,8 @@ int main(void)
             else
             {
                 logp("[FAN %d] Kibic druzyny %c podchodzi do kasy\n", my_id, team == 0 ? 'A' : 'B');
-            }*/
-            first_time = 0;
+            }
+            first_time = 0;*/
         }
         
         if (!queued)
@@ -361,6 +362,17 @@ int main(void)
                 goto exit_loop;
             }
 
+            if (sem_lock(semid, 3) == 0)
+            {
+                int active = d->active_cashiers;
+                sem_unlock(semid, 3);
+
+                if (active == 0)
+                {
+                    goto exit_loop;
+                }
+            }
+
             if (msgsnd(msqid, &req, sizeof(req) - sizeof(long), IPC_NOWAIT) == 0)
             {
                 break;
@@ -388,7 +400,7 @@ int main(void)
         }
 
         ssize_t r;
-        
+
         while (1)
         {
             if (evac_flag || d->evacuation)
@@ -397,13 +409,21 @@ int main(void)
                 goto exit_loop;
             }
 
+            if (sem_lock(semid, 3) == 0)
+            {
+                int active = d->active_cashiers;
+                sem_unlock(semid, 3);
+                if (active == 0)
+                {
+                    logp("[VIP %d] Ide do domu (brak kasjerow)\n", my_id);
+                    goto exit_loop;
+                }
+            }
+
             r = msgrcv(msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK + my_id, 0);
-
             if (r >= 0) break;
-
             if (errno == EINTR) continue;
             if (errno == EIDRM) goto exit_loop;
-
             fatal_error("fan msgrcv ticket");
         }
 
@@ -449,6 +469,13 @@ int main(void)
                     sem_unlock(semid, 3);
                 }
                 sem_unlock(semid, 4 + my_sector);
+                vip_entered = 1;
+            }
+
+            if (!vip_entered)
+            {
+                logp("[VIP %d] Nie udało się wejść na sektor\n", my_id);
+                break;
             }
 
             logp("[VIP %d] Ogląda mecz na sektorze VIP\n", my_id);
@@ -620,7 +647,7 @@ int main(void)
     }
     
     exit_loop:
-        if ((evac_flag || d->evacuation) && !already_left)
+        if ((evac_flag || d->evacuation) && !already_left && (my_sector == -1 || vip_entered || !vip))
         {
             leave_sector(my_sector, my_id, want_tickets);
             already_left = 1;
