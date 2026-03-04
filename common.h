@@ -17,7 +17,7 @@
 #include <time.h>
 
 #define MATCH_START_DELAY 5  // Mecz sie zaczyna po x sekundach
-#define MATCH_DURATION 30     // Mecz trwa x sekund
+#define MATCH_DURATION 60     // Mecz trwa x sekund
 
 #define SIG_EVACUATE (SIGRTMIN)
 
@@ -27,8 +27,9 @@
 
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
-#define MAX_FANS 200 //liczba fanow
-#define SECTOR_CAPACITY 14 //liczba miejsc w SEKTORZE
+#define MAX_FANS 3000 //liczba fanow
+#define MAX_FAN_ID (MAX_FANS * 3) //margines bezpieczenstwa (dzieci, towarzysze)
+#define SECTOR_CAPACITY 400 //liczba miejsc w SEKTORZE
 #define K (SECTOR_CAPACITY * 8)
 #define GATES_PER_SECTOR 2 
 #define MAX_GATE_CAPACITY 3 
@@ -39,7 +40,7 @@
 #define MSG_SECTOR_EMPTY 3
 
 #define MSG_GATE_REQUEST  10
-#define MSG_GATE_RESPONSE 1000
+#define MSG_GATE_RESPONSE 100000
 #define MSG_GATE_LEAVE    12
 #define MSG_GATE_REJECT 13
 #define MSG_GATE_BASE 3000
@@ -68,8 +69,8 @@ typedef struct
     int gate_team[MAX_SECTORS][GATES_PER_SECTOR];
     int sector_taken[MAX_SECTORS];
     volatile int evacuation;
-    int gate_wait[MAX_FANS];
-    int priority[MAX_FANS];
+    int gate_wait[MAX_FAN_ID];
+    int priority[MAX_FAN_ID];
     int active_cashiers;
     int ticket_queue;
     int vip_queue;
@@ -116,7 +117,7 @@ void logp(const char *format, ...);
 
 static inline int sem_lock(int semid, int num)
 {
-    struct sembuf sb = {num, -1, SEM_UNDO};
+    struct sembuf sb = {num, -1, 0};
 
     while (1)
     {
@@ -136,10 +137,11 @@ static inline int sem_lock(int semid, int num)
 
 static inline int sem_unlock(int semid, int num)
 {
-    struct sembuf sb = {num, 1, SEM_UNDO};
+    struct sembuf sb = {num, 1, 0};
 
     while (1)
     {
+        
         if (semop(semid, &sb, 1) == 0) return 0;
 
         if (errno == EINTR) continue;  //Kontynuuj próby

@@ -44,15 +44,6 @@ static void *child_thread_func(void *arg)
     child_args_t  *a    = (child_args_t *)arg;
     family_sync_t *sync = a->sync;
 
-    if (sync->is_child)
-    {
-        logp("[CHILD %d] Czeka przy kasie razem z opiekunem %d\n", sync->child_id, sync->parent_id);
-    }
-    else
-    {
-        logp("[COMPANION %d] Czeka przy kasie razem z %d\n", sync->child_id, sync->parent_id);
-    }
-
     pthread_mutex_lock(&sync->mutex);
     while (!sync->entered && !sync->should_leave && !*a->p_evac)
     {
@@ -177,7 +168,7 @@ int main(void)
 
     int has_flare = (rand() % 1000) < FLARE_PROB;
     int team = rand() % 2;
-    int patience = 5;
+    int patience = 200;
     int age = 18 + rand() % 40;
     int has_child = (rand() % 100) < 10;
     int has_companion = !has_child && (rand() % 100) < 20;
@@ -187,7 +178,7 @@ int main(void)
     int my_sector = -1;
     int already_left = 0;
 
-    pthread_t child_tid    = 0;
+    pthread_t child_tid = 0;
     family_sync_t sync;
     child_args_t cargs;
     int child_started = 0;
@@ -290,14 +281,14 @@ int main(void)
 
         if (first_time && !evac_flag)
         {
-            if (vip)
+            /*if (vip)
             {
                 logp("[VIP %d] Podchodzi do kasy bez kolejki\n", my_id);
             }
             else
             {
                 logp("[FAN %d] Kibic druzyny %c podchodzi do kasy\n", my_id, team == 0 ? 'A' : 'B');
-            }
+            }*/
             first_time = 0;
         }
         
@@ -357,8 +348,8 @@ int main(void)
             sem_unlock(semid, 2);
         }
 
-        logp("[FAN %d] Chce kupic bilet na sektor %d\n", my_id, req.sector);
-
+        //logp("[FAN %d] Chce kupic bilet na sektor %d\n", my_id, req.sector);
+        
         int send_retry = 0;
         int max_send_retry = 100000;
         
@@ -397,36 +388,22 @@ int main(void)
         }
 
         ssize_t r;
-        int recv_retry = 0;
-        int max_recv_retry = INT_MAX;
         
-        while (recv_retry < max_recv_retry)
+        while (1)
         {
             if (evac_flag || d->evacuation)
             {
                 leave_sector(my_sector, my_id, want_tickets);
                 goto exit_loop;
             }
-            
-            r = msgrcv(msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK + my_id, IPC_NOWAIT);
-            
-            if (r >= 0)
-            {
-                break;
-            }
-            
-            if (errno == ENOMSG)
-            {
-                sched_yield();
-                recv_retry++;
-                continue;
-            }
-            
-            if (errno == EINTR || errno == EIDRM)
-            {
-                goto exit_loop;
-            }
-            
+
+            r = msgrcv(msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK + my_id, 0);
+
+            if (r >= 0) break;
+
+            if (errno == EINTR) continue;
+            if (errno == EIDRM) goto exit_loop;
+
             fatal_error("fan msgrcv ticket");
         }
 
@@ -441,7 +418,10 @@ int main(void)
             queued = 0;
         }
 
-        my_sector = res.sector;
+        if (res.tickets > 0)
+        {
+            my_sector = res.sector;
+        }
 
         if (res.tickets > 0 && res.tickets < want_tickets && child_started)
         {
@@ -473,16 +453,16 @@ int main(void)
 
             logp("[VIP %d] Ogląda mecz na sektorze VIP\n", my_id);
 
-            int check_evac = 0;
-            while (!evac_flag && !check_evac && !leave_flag)
+            sigset_t mask, oldmask;
+            sigemptyset(&mask);
+            sigaddset(&mask, SIG_EVACUATE);
+            sigaddset(&mask, SIGTERM);
+            sigprocmask(SIG_BLOCK, &mask, &oldmask);
+            while (!evac_flag && !leave_flag && !d->evacuation)
             {
-                if (sem_lock(semid, 2) == 0)
-                {
-                    check_evac = d->evacuation;
-                    sem_unlock(semid, 2);
-                }
-                sched_yield();
+                sigsuspend(&oldmask);
             }
+            sigprocmask(SIG_UNBLOCK, &mask, NULL);
             break;
         }
 
@@ -540,9 +520,19 @@ int main(void)
             gate_req.tickets = res.tickets;
             gate_req.has_child = has_child;
 
-            if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), IPC_NOWAIT) == -1)
+            while (1) 
             {
-                if (errno != EINTR && errno != EIDRM && errno != EAGAIN) perror("fan gate msgsnd");
+                if (evac_flag || d->evacuation) goto exit_loop;
+                if (msgsnd(msqid, &gate_req, sizeof(gate_req) - sizeof(long), IPC_NOWAIT) == 0)break;
+                if (errno == EINTR) continue;
+                if (errno == EIDRM || evac_flag) goto exit_loop;
+                if (errno == EAGAIN)
+                {
+                    sched_yield();
+                    continue;
+                }
+                perror("fan gate msgsnd");
+                break;
             }
 
             if (!in_gate_queue)
@@ -559,10 +549,8 @@ int main(void)
             long my_type = MSG_GATE_RESPONSE + my_id;
 
             ssize_t gr;
-            int gate_retry = 0;
-            int max_gate_retry = INT_MAX;
-            
-            while (gate_retry < max_gate_retry)
+
+            while (1)
             {
                 if (evac_flag || d->evacuation)
                 {
@@ -570,30 +558,13 @@ int main(void)
                     goto exit_loop;
                 }
 
-                if (gate_retry % 1000000 == 0 && gate_retry > 0)
-                {
-                    logp("[FAN %d] UWAGA: Czekam juz %d iteracji na bramke %d/%d\n", my_id, gate_retry, res.sector, gate);
-                }
-                
-                gr = msgrcv(msqid, &gate_res, sizeof(gate_res) - sizeof(long), my_type, IPC_NOWAIT);
-                
-                if (gr >= 0)
-                {
-                    break;
-                }
-                
-                if (errno == ENOMSG)
-                {
-                    sched_yield();
-                    gate_retry++;
-                    continue;
-                }
-                
-                if (errno == EINTR || errno == EIDRM)
-                {
-                    goto exit_loop;
-                }
-                
+                gr = msgrcv(msqid, &gate_res, sizeof(gate_res) - sizeof(long), my_type, 0);
+
+                if (gr >= 0) break;
+
+                if (errno == EINTR) continue;
+                if (errno == EIDRM) goto exit_loop;
+
                 fatal_error("fan msgrcv gate");
             }
 
@@ -625,16 +596,16 @@ int main(void)
 
             logp("[FAN %d] Ogląda mecz na sektorze %d\n", my_id, my_sector);
 
-            int check_evac = 0;
-            while (!evac_flag && !check_evac && !leave_flag)
+            sigset_t mask, oldmask;
+            sigemptyset(&mask);
+            sigaddset(&mask, SIG_EVACUATE);
+            sigaddset(&mask, SIGTERM);
+            sigprocmask(SIG_BLOCK, &mask, &oldmask);
+            while (!evac_flag && !leave_flag && !d->evacuation)
             {
-                if (sem_lock(semid, 2) == 0)
-                {
-                    check_evac = d->evacuation;
-                    sem_unlock(semid, 2);
-                }
-                sched_yield();
+                sigsuspend(&oldmask);
             }
+            sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
             if (!already_left) 
             {

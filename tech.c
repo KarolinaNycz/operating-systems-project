@@ -16,8 +16,6 @@ void evacuate(int sig)
     evac_flag = 1;
 }
 
-
-
 int main(int argc, char **argv) 
 {
     if (argc < 3)
@@ -77,7 +75,7 @@ int main(int argc, char **argv)
 
                 int left;
                 int wait_iterations = 0;
-                int max_wait = 10000000;
+                int max_wait = 500000;
                 int yield_interval = 50;
 
             
@@ -181,15 +179,21 @@ int main(int argc, char **argv)
 
         long my_type = MSG_GATE_BASE + my_sector * GATES_PER_SECTOR + my_gate;
 
-        ssize_t r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), my_type, IPC_NOWAIT);
+        ssize_t r = msgrcv(msqid, &req, sizeof(req) - sizeof(long), my_type, 0);
 
         if (r <= 0)
         {
-            if (errno == ENOMSG)
+            if (errno == ENOMSG || errno == EAGAIN)
             {
                 sched_yield();
                 continue;
             }
+
+            if (errno == EINTR)
+            { 
+                continue;
+            }
+
             if (errno == EIDRM) 
             {
                 continue;
@@ -210,6 +214,7 @@ int main(int argc, char **argv)
 
         int gate = -1;
         int need = (req.tickets == 2) ? 2 : 1;
+        int spin = 0;
 
         while (!check_evac && !evac_flag)
         {
@@ -272,19 +277,21 @@ int main(int argc, char **argv)
             // Priorytet
             if (count > 0 && gteam != req.team && count < MAX_GATE_CAPACITY && !d->priority[req.pid])
             {
-                sem_lock(semid, 3);
-                d->gate_wait[req.pid]++;
+                if (sem_lock(semid, 3) == 0)
+                {
+                    d->gate_wait[req.pid]++;
     
-                if (d->gate_wait[req.pid] >= 5)
-                {
-                    d->priority[req.pid] = 1;
-                    sem_unlock(semid, 3);
-                    logp("[TECH %d/%d] Fan %d dostaje priorytet\n", my_sector, my_gate, req.pid);
-                }
-                else
-                {
-                    sem_unlock(semid, 3);
-                }
+                    if (d->gate_wait[req.pid] >= 5)
+                    {
+                        d->priority[req.pid] = 1;
+                        sem_unlock(semid, 3);
+                        logp("[TECH %d/%d] Fan %d dostaje priorytet\n", my_sector, my_gate, req.pid);
+                    }
+                    else
+                    {
+                        sem_unlock(semid, 3);
+                    } 
+                }  
             }
 
             if (d->priority[req.pid] && count + need <= MAX_GATE_CAPACITY)
@@ -316,10 +323,24 @@ int main(int argc, char **argv)
             }
 
             sched_yield();
+            spin++;
+            if (spin > 50)
+            {
+                if (sem_lock(semid, 4 + req.sector) == 0)
+                {
+                    d->gate_count[req.sector][my_gate] = 0;
+                    d->gate_team[req.sector][my_gate]  = req.team;
+                    d->gate_count[req.sector][my_gate] += need;
+                    gate = my_gate;
+                    sem_unlock(semid, 4 + req.sector);
+                }
+                break;
+            }
         }
         
         if (gate == -1) 
         {
+            sched_yield();
             continue;
         }
 
@@ -367,7 +388,7 @@ int main(int argc, char **argv)
             resp.tickets = -1;
             msgsnd(msqid, &resp, sizeof(resp) - sizeof(long), IPC_NOWAIT);
 
-            if (sem_lock(semid, 4 + req.sector) != -1)
+            if (sem_lock(semid, 4 + req.sector) == 0)
             {
                 if (d->gate_count[req.sector][gate] >= need)
                 {
@@ -402,7 +423,7 @@ int main(int argc, char **argv)
             logp("[Bramka %d/%d] Fan %d bezpieczny\n", my_sector, my_gate, req.pid);
         }
 
-        if (sem_lock(semid, 4 + req.sector) != -1)
+        if (sem_lock(semid, 4 + req.sector) == 0)
         {
             d->sector_taken[req.sector] += need;
 
@@ -430,6 +451,12 @@ int main(int argc, char **argv)
             if (errno == EINTR) continue;
 
             if (errno == EIDRM) break;
+
+            if (errno == EAGAIN)
+            {
+                sched_yield();
+                continue;
+            }
 
             perror("tech send response");
             break;

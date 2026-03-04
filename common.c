@@ -1,6 +1,10 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "common.h"
 #include <stdarg.h>
 #include <math.h>
+#include <fcntl.h>
+#include <sys/file.h>
 
 #define LOG_FILE "raport.txt"
 
@@ -40,7 +44,7 @@ int create_shared_memory(int total_fans)
         d->sector_taken[i] = 0;
     }
 
-    d->total_capacity = (MAX_SECTORS - 1) * SECTOR_CAPACITY + vip_capacity;
+    d->total_capacity = (MAX_SECTORS - 1) * SECTOR_CAPACITY;
     
     logp("[SYSTEM] Capacity VIP (sektor %d): %d miejsc (0.3%% z %d fanow)\n", VIP_SECTOR, vip_capacity, total_fans);
     logp("[SYSTEM] Total capacity: %d miejsc\n", d->total_capacity);
@@ -98,7 +102,7 @@ int create_semaphore(void)
 
     union semun arg;
 
-    arg.val = 1;
+    arg.val = 200;
     semctl(semid, 0, SETVAL, arg);
 
     arg.val = 1;
@@ -131,31 +135,24 @@ void remove_semaphore(int semid)
 
 void logp(const char *format, ...)
 {
-    static int semid = -1;
-    if (semid == -1) semid = semget(ftok(".", IPC_KEY + 2), 0, 0);
-
-    if (semid != -1) sem_lock(semid, 0);
-
     va_list args;
-
     va_start(args, format);
     vprintf(format, args);
     va_end(args);
 
-    fflush(stdout);
+    int fd = open(LOG_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd == -1) return;
 
-    FILE *fp = fopen(LOG_FILE, "a");
-
-    if (fp)
+    if (flock(fd, LOCK_EX | LOCK_NB) == -1)
     {
-        va_start(args, format);
-        vfprintf(fp, format, args);
-        va_end(args);
-
-        fflush(fp);
-        fclose(fp);
+        close(fd);
+        return;
     }
 
+    va_start(args, format);
+    vdprintf(fd, format, args);
+    va_end(args);
 
-    if (semid != -1) sem_unlock(semid, 0);
+    flock(fd, LOCK_UN);
+    close(fd);
 }

@@ -263,7 +263,7 @@ int main(void)
             }
         }
 
-        sched_yield();;
+        sched_yield();
 
     }
 
