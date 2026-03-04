@@ -460,6 +460,8 @@ https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fd
 https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/cashier.c#L263  
 
 ## 8.7 Konkretne wymagania projektu  
+- Utworzenie wątku dziecka / towarzysza:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/fan.c#L268  
 - 8 sektorów + 1 VIP:  
 https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L25-L26    
 - Pojemność sektora:  
