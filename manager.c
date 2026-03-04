@@ -299,8 +299,15 @@ int main(void)
         }
 
         int all_sold = 0;
-    
-        if (d->total_tickets_sold >= d->total_capacity)
+        int all_full = 1;
+        
+        for (int s = 0; s < MAX_SECTORS; s++)
+        {
+            if (s == VIP_SECTOR) continue;
+            if (d->sector_capacity[s] - d->sector_tickets_sold[s] > 0) { all_full = 0; break; }
+        }
+
+        if (all_full)
         {
             all_sold = 1;
 
@@ -315,7 +322,7 @@ int main(void)
                 for (int i = 0; i < MAX_CASHIERS; i++) if (cashier_pids[i] > 0) kill(cashier_pids[i], SIGTERM);
                 d->active_cashiers = 0;
             }
-                
+        
             sem_unlock(g_semid, 3);
 
             if (!drained)
@@ -375,9 +382,9 @@ int main(void)
     
                 kill(p, SIGTERM);
     
-                d->active_cashiers--;
+                cashier_pids[N - 1] = 0;
     
-                logp("[MANAGER] Zamykam kase (kolejka=%d, kasy=%d->%d)\n", queue, N, d->active_cashiers);
+                logp("[MANAGER] Zamykam kase (kolejka=%d, kasy=%d->%d)\n", queue, N, N - 1);
             }
 
             // Otwieranie kas

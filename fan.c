@@ -422,6 +422,7 @@ int main(void)
 
             r = msgrcv(msqid, &res, sizeof(res) - sizeof(long), MSG_TICKET_OK + my_id, 0);
             if (r >= 0) break;
+            if (errno == ENOMSG) { sched_yield(); continue; }
             if (errno == EINTR) continue;
             if (errno == EIDRM) goto exit_loop;
             fatal_error("fan msgrcv ticket");

@@ -16,8 +16,8 @@
 #include <stdarg.h>
 #include <time.h>
 
-#define MATCH_START_DELAY 5  // Mecz sie zaczyna po x sekundach
-#define MATCH_DURATION 200     // Mecz trwa x sekund
+#define MATCH_START_DELAY 1 // Mecz sie zaczyna po x sekundach
+#define MATCH_DURATION 100    // Mecz trwa x sekund
 
 #define SIG_EVACUATE (SIGRTMIN)
 
@@ -27,9 +27,9 @@
 
 #define MIN_CASHIERS 2
 #define MAX_CASHIERS 10
-#define MAX_FANS 5000 //liczba fanow
+#define MAX_FANS 1500 //liczba fanow
 #define MAX_FAN_ID (MAX_FANS * 3) //margines bezpieczenstwa (dzieci, towarzysze)
-#define SECTOR_CAPACITY 620 //liczba miejsc w SEKTORZE
+#define SECTOR_CAPACITY 170 //liczba miejsc w SEKTORZE
 #define K (SECTOR_CAPACITY * 8)
 #define GATES_PER_SECTOR 2 
 #define MAX_GATE_CAPACITY 3 

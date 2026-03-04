@@ -80,17 +80,21 @@ int main(void)
         }
 
         //Sprawdz czy wszystkie bilety zostaly sprzedane
-        if (sem_lock(semid, 3) == 0)
+        int all_full = 1;
+        for (int s = 0; s < MAX_SECTORS; s++)
         {
-            int sold = d->total_tickets_sold;
-            int capacity = d->total_capacity;
-            sem_unlock(semid, 3);
-        
-            if (sold >= capacity)
+            if (s == VIP_SECTOR) continue;
+            if (sem_lock(semid, 4 + s) == 0)
             {
-                logp("[CASHIER] Wszystkie bilety sprzedane (%d/%d) - zamykam kase\n", sold, capacity);
-                break;
+                int free = d->sector_capacity[s] - d->sector_tickets_sold[s];
+                sem_unlock(semid, 4 + s);
+                if (free > 0) { all_full = 0; break; }
             }
+        }
+        if (all_full)
+        {
+            logp("[CASHIER] Wszystkie sektory pelne - zamykam kase\n");
+            break;
         }
 
         // Priorytet dla VIP
