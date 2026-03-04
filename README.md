@@ -344,28 +344,56 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - Kasy zostają zamknięte po wyprzedaniu biletów  
   W logach managera pojawia się wpis `Wszystkie bilety sprzedane (X/X) - zamykam kasy`, a fani oczekujący w kolejce otrzymują odmowę i opuszczają system z komunikatem `Ide do domu (brak biletow)`.  
 
-## 7.7 Test obciążeniowy — 3000 kibiców  
 
-![](test71.jpg)  
-![](test72.jpg)  
-![](test73.jpg)  
+***Na potrzeby dwóch następnych testów, tymczasowo zakomentowano VIP, wykrywanie rac, dzieci oraz osoby towarzyszące**
+## 7.7 Test obciążeniowy — kasy (5000 kibiców)
 
-- Symulacja została przeprowadzona z dużą liczbą kibiców (`MAX_FANS = 3000`) w celu weryfikacji poprawności działania systemu pod dużym obciążeniem. Test sprawdza, czy wszystkie mechanizmy współpracują ze sobą poprawnie.  
+![](test91.jpg)  
+![](test92.jpg)  
+![](test93.jpg)   
+![](test94.jpg)  
+![](test95.jpg)  
 
-**Test potwierdza, że:**  
+- Symulacja została przeprowadzona z bardzo dużą liczbą kibiców (`MAX_FANS = 5000`) w celu sprawdzenia działania systemu przy intensywnym obciążeniu. Wszyscy kibice zostali uruchomieni jednocześnie, co powoduje gwałtowny wzrost liczby żądań zakupu biletów kierowanych do kas. Test koncentruje się wyłącznie na mechanizmie sprzedaży biletów oraz poprawnym działaniu procesów kasjerów.
 
-- System poprawnie obsługuje 3000 równoległych procesów kibiców  
-  Wszystkie procesy kończą działanie bez zawieszenia — kibice kupują bilety, przechodzą przez bramki lub wracają do domu po odmowie.  
+**Test potwierdza, że:**
 
-- Bilety zostają w pełni wyprzedane  
-  Manager wykrywa wyprzedanie i zamyka kasy, a pozostali kibice w kolejce otrzymują odmowę.  
+- System poprawnie obsługuje bardzo dużą liczbę jednoczesnych żądań zakupu  
+  Tysiące procesów kibiców wysyła równocześnie komunikaty do kolejki wiadomości, a kasjerzy obsługują je bez zawieszania programu.
 
-- Semafory i kolejki wiadomości pozostają stabilne  
-  Nie występują błędy `EFBIG` ani zawieszone procesy oczekujące na wiadomość, która nie zostanie wysłana.  
+- Mechanizm kolejek komunikatów działa stabilnie pod dużym obciążeniem  
+  Żądania zakupu są poprawnie odbierane przez procesy kasjerów, a odpowiedzi są zwracane do właściwych kibiców.
 
-- Ewakuacja po zakończeniu meczu przebiega poprawnie  
-  Wszystkie sektory zgłaszają opróżnienie, procesy techników i kasjerów kończą działanie, manager zwalnia zasoby IPC i kończy pracę z komunikatem `Cleanup zakonczony`.
+- Dynamiczne zarządzanie kasami funkcjonuje poprawnie  
+  Wraz ze wzrostem liczby oczekujących kibiców manager otwiera dodatkowe kasy, co pozwala na sprawniejszą obsługę dużej liczby klientów.
 
+- System zachowuje stabilność przy dużej liczbie procesów  
+  Pomimo uruchomienia 5000 procesów kibiców jednocześnie, system nie ulega zawieszeniu, a komunikacja pomiędzy procesami przebiega poprawnie.  
+
+## 7.8 Test obciążeniowy — bramki bezpieczeństwa (5000 kibiców)
+
+![](test101.jpg)    
+![](test102.jpg)  
+![](test103.jpg)  
+![](test104.jpg)  
+
+- Symulacja została przeprowadzona w celu sprawdzenia działania systemu kontroli bezpieczeństwa przy dużej liczbie kibiców próbujących wejść na stadion. Po zakupie biletów kibice kierują się do odpowiednich bramek sektorów, gdzie są obsługiwani przez procesy techników. Test koncentruje się na mechanizmie kolejek przy bramkach oraz poprawnej synchronizacji dostępu do sektorów.
+
+**Test potwierdza, że:**
+
+- System poprawnie obsługuje dużą liczbę kibiców oczekujących przy bramkach  
+  Kibice ustawiają się w kolejkach do odpowiednich bramek sektorów, a technicy obsługują ich w sposób uporządkowany bez utraty danych.
+
+- Mechanizm kolejek przy bramkach działa stabilnie  
+  Kibice są poprawnie dodawani i usuwani z kolejki `gate_queue`, a dostęp do struktury jest synchronizowany przy użyciu semafora.
+
+- Kontrola wejścia na sektor przebiega poprawnie  
+  Technik odbiera zgłoszenia od kibiców, przeprowadza kontrolę i zezwala na wejście na stadion.
+
+- System zachowuje stabilność przy dużym obciążeniu  
+  Nawet przy wielu kibicach jednocześnie próbujących przejść przez bramki nie dochodzi do zawieszenia programu ani utraty komunikatów między procesami.
+
+  
 # 8. Linki do fragmentów kodu  
 ## 8.1 Tworzenie i obsługa plików
 - Utworzenie/wyczyszczenie pliku raportu na starcie:  
