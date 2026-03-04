@@ -397,102 +397,96 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 # 8. Linki do fragmentów kodu  
 ## 8.1 Tworzenie i obsługa plików
 - Utworzenie/wyczyszczenie pliku raportu na starcie:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L140-L141  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L140-L141  
 - Otwieranie raportu do dopisywania:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.c#L147  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.c#L143-L144   
 - Zamykanie deskryptora pliku raportu:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.c#L156
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.c#L146-L150  
 
 ## 8.2 Tworzenie procesów
 - Uruchomienie kasjerów:    
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L200-L209  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L199-L210     
 - Uruchomienie techników:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L212-L229  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L212-L230   
 - Uruchomienie fanów (stopniowe):  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L266-L289  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L269-L293   
 - Dynamiczne otwieranie/zamykanie nowej kasy:   
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L380-L407  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L378-L406    
 
 ## 8.3 Obsługa sygnałów  
 - Rejestracja handlera ewakuacji:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L177
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L172-L177  
 - Handler blokowania sektora (SIGUSR1):    
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L85-L106
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L85  
 - Handler odblokowania sektora (SIGUSR2):  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L108-L129
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L108  
 - Zakończenie meczu (SIGTERM - manager):  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L66-L72
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L169  
 - Wysyłanie sygnału z wartością sektora (sigqueue):  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/signal.c#L43
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/signal.c#L43  
 
 ## 8.4 Synchronizacja – semafory  
 - Tworzenie zestawu semaforów:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.c#L96
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.c#L99  
 - Inicjalizacja wartości semaforów:   
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.c#L102-L118  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.c#L109  
 - Funkcja sem_lock:    
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.h#L118-L136  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L118
+- Funkcja sem_unlock:
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L138   
 - Ochrona sektora przy sprzedaży biletów:   
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/cashier.c#L173-L181
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/cashier.c#L159  
 
 ## 8.5 Pamięć współdzielona
 - Tworzenie segmentu:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.c#L18
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.c#L22  
 - Podpinanie w procesach:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/fan.c#L95
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/fan.c#L198  
 - Odłączanie na końcu procesu:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/fan.c#L510
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/fan.c#L670  
 - Usuwanie zasobów przez managera:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L52-L54  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L52-L54    
 
 ## 8.6 Kolejki komunikatów  
 - Definicje typów wiadomości:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.h#L36-L45  
-- Tworzenie kolejki:   
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.c#L80-L89  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L37-L40   
+- Tworzenie kolejki:     
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.c#L88    
 - Wysyłanie żądania kibic - kasjer:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/fan.c#L198-L205  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/fan.c#L257-L260  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/fan.c#L376      
 - Odbiór po stronie kasjera (priorytet VIP):  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/cashier.c#L97-L102  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/cashier.c#L105  
+- Odpowiedź kasjera do fana:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/cashier.c#L263  
 
 ## 8.7 Konkretne wymagania projektu  
 - 8 sektorów + 1 VIP:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.h#L25-L26  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L25-L26    
 - Pojemność sektora:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.h#L31
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L32  
 - Pojemność VIP (0.3% fanów):  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.c#L26-L43
-- Stała liczba kas:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.h#L28-L29
-- Minimum 2 kasy zawsze aktywne:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L362-L366  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.c#L30  
+- Minimalna liczba kas:  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L28    
 - Auto-otwieranie kas przy dużej kolejce:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L393-L404  
-- Auto-zamykanie kas przy małej kolejce:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L381-L387  
+https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L393-L404   
 - Kasjer obsługuje VIP w pierwszej kolejności:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/cashier.c#L97-L102  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/cashier.c#L101    
 - Non-VIP nie może kupić biletu na sektor VIP:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/cashier.c#L161-L165  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/cashier.c#L147-L151    
 - Wykrycie racy na bramce:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L360-L368  
-- Skąd kibic ma racę:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/fan.c#L73  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/tech.c#L381   
 - Limit 3 osób na stanowisko bramki:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/common.h#L34  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/common.h#L35  
 - Priorytet dla agresywnego kibica:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L278-L287  
-- Dziecko wymaga opiekuna:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/cashier.c#L132-L152  
-- Blokowanie sektora przez technika:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L235-L254  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/tech.c#L286    
 - Procedura ewakuacji – manager wysyła sygnały:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L448-L466  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L440    
 - Tech potwierdza opróżnienie sektora:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/tech.c#L135-L152  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/tech.c#L133  
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/tech.c#L145  
 - Manager czeka na potwierdzenia od wszystkich sektorów:  
-https://github.com/KarolinaNycz/operating-systems-project/blob/main/manager.c#L474-L487
+https://github.com/KarolinaNycz/operating-systems-project/blob/4895c8e74004c05fde7ba6fc0e10100acf414549/manager.c#L476  
 
 
 
