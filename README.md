@@ -217,7 +217,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - System nie odmawia sprzedaży biletu przy dostępności miejsc w innych sektorach  
   W sytuacji braku miejsc w wybranym sektorze kasjer proponuje alternatywny sektor z wolną pojemnością.  
 
-  ## 7.2 Wykrywanie zagrożenia
+## 7.2 Wykrywanie zagrożenia
   ![](test21.jpg)  
   ![](test22.jpg)  
   ![](test23.jpg)  
@@ -234,7 +234,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - Liczniki są poprawnie aktualizowane po wyprowadzeniu  
   System dekrementuje `sector_tickets_sold` oraz `total_tickets_sold`, zwalniając miejsce dla innych kibiców.  
 
-## 7.2 Obsługa kibica z dzieckiem lub osobą towarzyszącą
+## 7.3 Obsługa kibica z dzieckiem lub osobą towarzyszącą
 
  ![](test81.jpg)    
  ![](test82.jpg)   
@@ -269,7 +269,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
   Podczas ewakuacji lub zakończenia meczu obie jednostki opuszczają stadion razem.
 
 
- ## 7.3 Mechanizm priorytetu przy bramce
+ ## 7.4 Mechanizm priorytetu przy bramce
 
 ![](test4.jpg)
 
@@ -287,7 +287,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - Kibic zostaje poinformowany o otrzymaniu priorytetu  
   W pliku `raport.txt` pojawiają się wpisy `Fan X dostaje priorytet`.
 
-## 7.4 Test sygnałów
+## 7.5 Test sygnałów
 
 ![](test51.jpg)  
 ![](test52.jpg)  
@@ -323,7 +323,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - Zasoby IPC są poprawnie zwalniane  
   Po zakończeniu systemu brak wiszących zasobów — weryfikacja przez `ipcs` nie wykazuje pozostałości po kolejkach komunikatów, semaforach ani segmentach pamięci współdzielonej.
 
-  ## 7.5 Dynamiczne zarządzanie kasami
+  ## 7.6 Dynamiczne zarządzanie kasami
 
 ![](test61.jpg)  
 ![](test62.jpg)  
@@ -346,7 +346,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 
 
 ***Na potrzeby dwóch następnych testów, tymczasowo zakomentowano VIP, wykrywanie rac, dzieci oraz osoby towarzyszące**
-## 7.6 Test obciążeniowy — kasy (5000 kibiców)
+## 7.7 Test obciążeniowy — kasy (5000 kibiców)
 
 ![](test91.jpg)  
 ![](test92.jpg)  
@@ -370,7 +370,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 - System zachowuje stabilność przy dużej liczbie procesów  
   Pomimo uruchomienia 5000 procesów kibiców jednocześnie, system nie ulega zawieszeniu, a komunikacja pomiędzy procesami przebiega poprawnie.  
 
-## 7.7 Test obciążeniowy — bramki bezpieczeństwa (5000 kibiców)
+## 7.8 Test obciążeniowy — bramki bezpieczeństwa (5000 kibiców)
 
 ![](test101.jpg)    
 ![](test102.jpg)  
