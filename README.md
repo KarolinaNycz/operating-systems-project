@@ -239,13 +239,13 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
  ![](test81.jpg)    
  ![](test82.jpg)   
  ![](test83.jpg)   
-
  
 - Część kibiców może pojawić się na stadionie z dzieckiem lub osobą towarzyszącą.  
   W takim przypadku proces kibica tworzy dodatkowy wątek reprezentujący dziecko
   lub towarzysza. Oba podmioty działają równolegle i synchronizują swoje działania
-  za pomocą mechanizmów `pthread` (muteks oraz zmienna warunkowa).
+  za pomocą mechanizmów `pthread` (muteks oraz zmienna warunkowa).  
 
+![](test84.jpg)  
 - Kibic próbuje zakupić dwa bilety w tym samym sektorze — dla siebie oraz osoby
   towarzyszącej. Jeśli kasjer nie jest w stanie przydzielić dwóch miejsc w jednym
   sektorze, sprzedaż zostaje ograniczona do jednego biletu. W takiej sytuacji
