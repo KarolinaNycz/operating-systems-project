@@ -170,8 +170,8 @@ Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonal
 - **Obsługa kibiców niepełnoletnich**
   dzieci poniżej 15. roku życia mogą wejść wyłącznie pod opieką dorosłego, co jest weryfikowane przez kasjera
 
-- **Synchronizowane logowanie zdarzeń**  
-  Zabezpieczenie zapisu do pliku `raport.txt` przy użyciu semaforów.
+- **Synchronizowane logowanie zdarzeń**     
+  Zabezpieczenie zapisu do pliku `raport.txt` przy użyciu blokady pliku (`flock`).
 
 - **Automatyczne proponowanie alternatywnego sektora**  
   Jeśli wybrany przez kibica sektor jest pełny, kasjer automatycznie wyszukuje wolne miejsce w innym sektorze i przydziela bilet tam, zamiast odmawiać sprzedaży.
@@ -181,9 +181,6 @@ Projekt zawiera kilka istotnych rozwiązań, które zwiększają jego funkcjonal
 W projekcie zastosowano zestaw semaforów System V w celu synchronizacji dostępu do zasobów współdzielonych oraz zapewnienia poprawnej współpracy pomiędzy procesami.
 
 Wykorzystywane semafory pełnią następujące funkcje:
-
-- **Semafor 0 – synchronizacja logowania**  
-  Odpowiada za kontrolę dostępu do funkcji zapisujących dane do pliku `raport.txt`, zapobiegając nakładaniu się komunikatów z różnych procesów.
 
 - **Semafor 1 – kolejki bramkowe**  
   Chroni dostęp do struktur `gate_queue` przechowywanych w pamięci współdzielonej.  
@@ -240,15 +237,7 @@ Zastosowanie oddzielnych semaforów dla poszczególnych obszarów systemu pozwal
 ## 7.3 Odmowa sprzedaży biletu dziecku bez opiekuna
 
  ![](test3.jpg)    
-- Dziecko poniżej 15. roku życia może pojawić się w systemie bez przypisanego opiekuna, jednak jest to zdarzenie rzadkie — każdy dorosły może być opiekunem tylko jednego dziecka, a dziecko bez opiekuna pojawia się wyłącznie wtedy, gdy w systemie nie ma wolnego dorosłego. Na potrzeby testu zwiększono prawdopodobieństwo losowania dzieci. Kasjer wykrywa brak opiekuna i odmawia sprzedaży biletu, a dziecko opuszcza system.  
 
-**Test potwierdza, że:**  
-
-- Kasjer poprawnie weryfikuje obecność opiekuna  
-  System sprawdza pole `guardian` w żądaniu zakupu biletu i odmawia sprzedaży, gdy jego wartość wynosi `0`.  
-
-- Dziecko bez opiekuna nie wchodzi na stadion  
-  Po otrzymaniu odmowy kibic kończy działanie i opuszcza system bez przydzielonego biletu ani sektora.
 
  ## 7.4 Mechanizm priorytetu przy bramce
 
